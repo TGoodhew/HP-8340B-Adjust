@@ -1,3 +1,4 @@
+using HP8340B.Instruments.Model;
 using HP8340B.Measurements.Model;
 using Xunit;
 

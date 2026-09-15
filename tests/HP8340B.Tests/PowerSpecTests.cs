@@ -1,4 +1,4 @@
-using HP8340B.Measurements.Model;
+using HP8340B.Instruments.Model;
 using Xunit;
 
 namespace HP8340B.Tests;

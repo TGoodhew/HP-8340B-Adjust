@@ -1,6 +1,6 @@
 using HP8340B.Instruments;
 using HP8340B.Instruments.Config;
-using HP8340B.Measurements.Model;
+using HP8340B.Instruments.Model;
 using Spectre.Console;
 using Spectre.Console.Cli;
 

@@ -1,4 +1,4 @@
-namespace HP8340B.Measurements.Model;
+namespace HP8340B.Instruments.Model;
 
 /// <summary>
 /// The 8340B's five frequency bands. Bandswitch points are approximate — the exact

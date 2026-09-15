@@ -1,4 +1,4 @@
-namespace HP8340B.Measurements.Model;
+namespace HP8340B.Instruments.Model;
 
 /// <summary>
 /// The 8340B output option, which sets the maximum-leveled-power limits.

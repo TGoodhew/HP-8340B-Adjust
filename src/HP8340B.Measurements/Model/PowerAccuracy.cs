@@ -1,3 +1,5 @@
+using HP8340B.Instruments.Model;
+
 namespace HP8340B.Measurements.Model;
 
 /// <summary>

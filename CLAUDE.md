@@ -44,8 +44,8 @@ against the HP 8340B/41B Operating & Service Manual, Sections IV and V.
 
 | Project | What lives there |
 |---|---|
-| `HP8340B.Instruments` | VISA transport, `IInstrument`, one driver per instrument, simulators, bench config |
-| `HP8340B.Measurements` | Band and power-spec models, envelope, squegging scan, monotonicity, spurs |
+| `HP8340B.Instruments` | VISA transport, `IInstrument`, one driver per instrument, simulators, bench config, and the DUT facts they all need: band table and Table 4-9 max leveled power |
+| `HP8340B.Measurements` | Judging readings against spec (accuracy, flatness), envelope, squegging scan, monotonicity, spurs |
 | `HP8340B.Bench` | `BenchSetup` data, hook-up cards, wiring self-checks, the planner |
 | `HP8340B.Procedures` | Guided step runners for 5-14, 5-16 and the Section IV tests |
 | `HP8340B.Reports` | JSON/CSV/Markdown/HP-GL output |
