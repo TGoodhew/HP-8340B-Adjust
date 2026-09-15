@@ -23,6 +23,14 @@ public sealed class InstrumentConfig
     public string? Note { get; set; }
 
     /// <summary>
+    /// I/O timeout in milliseconds. Null uses <see cref="Visa.VisaInstrumentLink.DefaultTimeout"/>.
+    /// Set it where an instrument is genuinely slow: the 8902A averages for up to 10 s, and a 2 s
+    /// DUT sweep plus settling is longer again. A flat value across the bench would either time
+    /// out on those or leave a dead instrument hanging for ten seconds.
+    /// </summary>
+    public int? TimeoutMs { get; set; }
+
+    /// <summary>
     /// False for passive kit that is not on the bus at all — power sensors that plug into a
     /// meter, splitters, pads. These are listed so the session records what produced a reading
     /// and so drivers can enforce the right frequency range and power limit, but `probe` reports

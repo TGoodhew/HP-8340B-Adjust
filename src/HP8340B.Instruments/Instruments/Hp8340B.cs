@@ -56,29 +56,39 @@ public sealed class Hp8340B : IInstrument
     public StatusByte1 ReadStatus() => (StatusByte1)_link.SerialPoll();
 
     /// <summary>
-    /// Waits for <see cref="StatusByte1.RfSettled"/>. This is the 8340B's stand-in for *OPC?.
+    /// Waits for <see cref="StatusByte1.RfSettled"/>. This is the 8340B's stand-in for *OPC?,
+    /// which it does not have. Returns false on timeout rather than throwing, so a caller can
+    /// decide whether a slow settle is fatal.
     ///
-    /// SKELETON: polls the status byte. The real implementation (M0-03) must decide between
-    /// polling and SRQ, and must clear the mask state the DUT keeps between polls — do not
-    /// trust this for timing-critical work until that issue is closed.
+    /// Aborts immediately on <see cref="StatusByte1.SyntaxError"/>: waiting out the full timeout
+    /// after a malformed command would hide the real fault behind a timeout message.
+    /// See <see cref="StatusPoller"/> for why this polls rather than using SRQ.
     /// </summary>
-    public bool WaitSettled(TimeSpan timeout)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < deadline)
-        {
-            var status = ReadStatus();
+    public bool WaitSettled(TimeSpan timeout, CancellationToken cancellationToken = default) =>
+        StatusPoller.WaitFor(
+            _link,
+            isReady: s => ((StatusByte1)s).HasFlag(StatusByte1.RfSettled),
+            timeout: timeout,
+            abort: s => ((StatusByte1)s).HasFlag(StatusByte1.SyntaxError),
+            abortMessage: _ =>
+                "The 8340B reported an HP-IB syntax error (status byte #1 bit 5). The last command "
+                + $"sent was: {_link.History.LastOrDefault() ?? "(none)"}",
+            cancellationToken: cancellationToken) is not null;
 
-            if (status.HasFlag(StatusByte1.SyntaxError))
-                throw new InvalidOperationException(
-                    "The 8340B reported an HP-IB syntax error (status byte #1 bit 5). The last "
-                    + $"command sent was: {_link.History.LastOrDefault() ?? "(none)"}");
-
-            if (status.HasFlag(StatusByte1.RfSettled)) return true;
-            Thread.Sleep(20);
-        }
-        return false;
-    }
+    /// <summary>
+    /// Waits for <see cref="StatusByte1.EndOfSweep"/> after a <see cref="TakeSweep"/>. Same
+    /// polling and abort behaviour as <see cref="WaitSettled"/>.
+    /// </summary>
+    public bool WaitEndOfSweep(TimeSpan timeout, CancellationToken cancellationToken = default) =>
+        StatusPoller.WaitFor(
+            _link,
+            isReady: s => ((StatusByte1)s).HasFlag(StatusByte1.EndOfSweep),
+            timeout: timeout,
+            abort: s => ((StatusByte1)s).HasFlag(StatusByte1.SyntaxError),
+            abortMessage: _ =>
+                "The 8340B reported an HP-IB syntax error (status byte #1 bit 5) while waiting for "
+                + $"end of sweep. The last command sent was: {_link.History.LastOrDefault() ?? "(none)"}",
+            cancellationToken: cancellationToken) is not null;
 
     public ProbeResult Probe()
     {

@@ -45,6 +45,10 @@ public static class SimulatedBench
         var resourceName = config.AddressUnknown ? $"SIM::{config.Role}::INSTR" : config.Address;
         var link = LinkFor(config.Model, resourceName);
 
+        // Carry the configured timeout even in simulation, so a bad value shows up in tests
+        // rather than only on the bench.
+        if (config.TimeoutMs is { } ms) link.Timeout = TimeSpan.FromMilliseconds(ms);
+
         // The DUT gets the real driver over a simulated link, so its command builders and
         // status-byte logic are exercised identically to a hardware run.
         if (config.Role.Equals("dut", StringComparison.OrdinalIgnoreCase))
@@ -81,7 +85,9 @@ public static class InstrumentFactory
                 $"Instrument '{config.Role}' ({config.Model}) has no address configured. Set it in "
                 + "bench.json or bench.local.json, or run with --sim.");
 
-        var link = new VisaInstrumentLink(config.Address);
+        var link = new VisaInstrumentLink(
+            config.Address,
+            config.TimeoutMs is { } ms ? TimeSpan.FromMilliseconds(ms) : null);
 
         if (config.Role.Equals("dut", StringComparison.OrdinalIgnoreCase))
             return new Hp8340B(link);

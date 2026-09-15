@@ -12,7 +12,7 @@
   "dutSerial": "TBD",
 
   "instruments": [
-    { "role": "dut",                "model": "HP 8340B",  "address": "GPIB0::19::INSTR",
+    { "role": "dut",                "model": "HP 8340B",  "address": "GPIB0::19::INSTR", "timeoutMs": 20000,
       "note": "Factory default address is 19 — CONFIRM against the instrument." },
 
     { "role": "spectrum-analyzer",  "model": "HP 8563E",  "address": "GPIB0::18::INSTR" },
@@ -24,7 +24,7 @@
       "note": "Confirm the LAN address has not moved." },
 
     { "role": "dmm",                "model": "HP 3458A",  "address": "TBD" },
-    { "role": "measuring-receiver", "model": "HP 8902A",  "address": "TBD",
+    { "role": "measuring-receiver", "model": "HP 8902A",  "address": "TBD", "timeoutMs": 20000,
       "note": "With the 11792A sensor module (50 MHz-18 GHz) — the primary absolute-power path." },
     { "role": "lo-source",          "model": "HP 8673B",  "address": "TBD" },
     { "role": "switch-driver",      "model": "HP 11713A", "address": "TBD",
@@ -41,7 +41,7 @@
     // Standing absolute-power path, and the one that covers the whole instrument. The 437B is on
     // HP-IB, so both sensors below are automatable. Together they span 10 MHz - 26.5 GHz, which
     // is the entire range of the 8340B: nothing needs borrowing for power.
-    { "role": "power-meter",        "model": "HP 437B",  "address": "TBD",
+    { "role": "power-meter",        "model": "HP 437B",  "address": "TBD", "timeoutMs": 15000,
       "note": "Reads both sensors below. Zero and calibrate against its own 50 MHz 1 mW reference." },
 
     // Sensors are not separately addressable — they plug into the 437B. Listed so the driver can
