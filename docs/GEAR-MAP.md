@@ -84,7 +84,14 @@ tool here.
 | **Absolute power 18–26.5 GHz** | 5-14 band-4 min-power confirmation (step 30); 4-5 in band 4 and 18–20 GHz of band 3; 4-6 in band 4 | Cheapest: an HP K486A waveguide thermistor mount (18–26.5 GHz, WR-42) on the existing 432A through a 3.5 mm-to-WR-42 adapter. Otherwise an 8485A or 8487A on a 435/436/437/438/E441x meter — the same meter the 848x sensors need. Until then: `Relative` via 8902A/11793A, `Typical` via the 8563E. |
 | **Broadband DBM, 2–26.5 GHz** | 4-16 FM flatness at 50 kHz–10 MHz rates; the manual's exact 4-12/4-13 down-conversion; optionally PN.EXE external-conversion mode | Band 0/1 up to the E4438C limit: any cheap DBM with the E4438C as LO. For 4-12/4-13 the 8473C into a 50 Ω-terminated DS1104Z channel is the alternative envelope method. Low priority. |
 | **Positive-polarity detector** | 5-15 step 26 only | Skip the step. |
-| **3.5 mm cable and 10/20 dB pads to 26.5 GHz; a meter for the 848x sensors** | Band-4 work in front of anything but the 8563E; the second power path | On the borrow list. |
+| **3.5 mm cable and 10/20 dB pads to 26.5 GHz; a meter for the 848x sensors** | Band-4 work in front of anything but the 8563E; the second power path | On the borrow list - but see the note below on the 437B. |
+
+**A possible second power path already here.** The manual library holds a full set of **HP 437B**
+documentation (`437B-UM.pdf`, `437B-SM.pdf`, `HP_437B_Service_Manual.pdf`, plus two folders of
+page scans). That is a lot of paper to keep for a meter nobody owns. The 437B is on HP-IB and
+reads the 848x sensors, so if one is on the bench it closes the "meter for the 848x sensors" gap
+outright and gives an automatable second absolute-power path everywhere below 18 GHz. Worth
+checking - it is issue D-04.
 
 **Closed by what is on hand:** pulse generator (8116A, DG1032Z spare) · 300–400 MHz source for
 5-5 (E4438C) · low-voltage PSU (8116A/DG1032Z DC + 3458A) · splitter to 18 GHz (11667A) ·

@@ -22,6 +22,11 @@ project brief and the manual disagree, the manual wins and the difference is rec
 | 3 | 2026-09-15 | **Cal-constant presets confirmed, not corrected.** The two-column table in 5-14 step 3 scrambles badly under layout-preserving extraction. Re-read in raw order it is unambiguous and matches the brief exactly: CC3–CC8 = 100, CC9–CC12 = 1024, CC50–CC53 = 0, CC71–CC74 = 1024, CC75 = 25, CC76 = 1000, CC77 = −25, CC78 = +25, CC80 = 0, with CC2 = 100 set separately in step 2. |
 | 4 | 2026-09-15 | **A24 pot table confirmed.** 5-14 steps 4–6 list exactly the twelve pots and names the brief gives. |
 | 5 | 2026-09-15 | **Max leveled power table confirmed** for all four options against Table 4-9 (1 of 2), p. 4-24. |
+| 6 | 2026-09-15 | **Section III found.** `8340b User.pdf` in the local manual library is the operating manual with a full text layer, including Table 3-2, HP 8340B/41B Programming Codes (pp. 3-59 to 3-62). Every HP-IB code the project needs is now verified and cited; nothing is Unverified. See [HPIB-8340B.md](HPIB-8340B.md). |
+| 7 | 2026-09-15 | **`DF` is delta frequency, not frequency span.** The brief was unsure which; Table 3-2 settles it. |
+| 8 | 2026-09-15 | **The cal-constant access mechanism is `SHGZ`/`SHMZ`/`SHKZ`/`SHHZ`/`SHEF`** (I/O channel, subchannel, write, read, and restore-access). These map directly onto 5-14 step 2's key sequence and are almost certainly what HP's 08340-10009 "display cal data" utility used. The `SHHZ` read semantics still need confirming on hardware. |
+| 9 | 2026-09-15 | **SYTM auto-tracking is `SHRP`**, confirmed in prose: "[SHIFT] [PEAK] (HP-IB: SHRP) ... aligns all of the YTM tracking calibration constants and requires 5-10 seconds". Note `RP` is a different, much weaker function - it peaks one CW frequency only. |
+| 10 | 2026-09-15 | **Both status bytes are readable with `OS (2b)`**, so extended status byte #2 - RF unleveled, external reference selected - is available over the bus as the design assumed. |
 
 ### Still to verify
 
@@ -32,6 +37,8 @@ project brief and the manual disagree, the manual wins and the difference is rec
 - **Table 4-8 swept frequency accuracy test frequencies** and **Table 4-2 equipment** both
   extract with OCR damage to the numerals (`2-32` for `2.32`, `24.55'` for `24.55`). Transcribe
   from the page image, not the text layer.
+- **The spurious specification table** below is still as the project brief gave it; it has not
+  been re-checked against the specification pages.
 
 ## B.1 Architecture
 

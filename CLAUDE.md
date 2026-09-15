@@ -10,8 +10,11 @@ against the HP 8340B/41B Operating & Service Manual, Sections IV and V.
    Never in a background loop. Reads are fine. Log every write with timestamp, old and new value.
 2. **Never fabricate an HP-IB code.** Every mnemonic lives in `Hp8340BCommands.All` with a
    citation. Unverified codes throw in `Require()` rather than reaching the instrument, and
-   `docs/HPIB-8340B.md` carries the same table. Verify against Tables 3-1/3-2 of the
-   **operating** manual, not the service manual.
+   `docs/HPIB-8340B.md` carries the same table. The source is **Table 3-2 of the operating
+   manual** (`8340b User.pdf` in the local library), not the service manual. Extract that table
+   with `pdftotext -raw`, never `-layout` - layout mode drifts the columns by a row and
+   mis-pairs every code after the first wrapped cell. See docs/HPIB-8340B.md for the three
+   cross-checks used to confirm the pairing.
 3. **Every measurement records its traceability class** (`Spec`, `Relative`, `Typical`,
    `NotPossible`) and the instrument settings used, in the session JSON.
 4. **Simulators are first-class.** `dotnet test` must pass with no hardware. Hardware-only work
@@ -61,6 +64,12 @@ dotnet test                                              # must pass with no har
 
 Addresses live in `bench.json`. A git-ignored `bench.local.json` beside it overlays entries by
 role, so real addresses never have to be committed.
+
+## Manuals
+
+Vendor manuals are at `C:\Users\Tony\OneDrive\Documents\Manuals` - check there before searching
+the web. `docs/manual/README.md` indexes what is there for each instrument on this bench, what is
+missing, and how to extract tables without mis-reading them.
 
 ## Writing code here
 
