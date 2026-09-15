@@ -82,6 +82,24 @@ public sealed class VisaInstrumentLink : IInstrumentLink
         return Read();
     }
 
+    public byte[] ReadBytes(int count)
+    {
+        var sw = Stopwatch.StartNew();
+        var data = _session.RawIO.Read(count);
+        Log(BusOperation.Read, $"<{data.Length} bytes>", null, sw.Elapsed);
+        return data;
+    }
+
+    public void WriteBytes(byte[] data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        var sw = Stopwatch.StartNew();
+        // No terminator: the instrument counts the bytes it expects, and a trailing newline
+        // would be read as data.
+        _session.RawIO.Write(data);
+        Log(BusOperation.Write, $"<{data.Length} bytes>", null, sw.Elapsed);
+    }
+
     public byte SerialPoll()
     {
         var sw = Stopwatch.StartNew();

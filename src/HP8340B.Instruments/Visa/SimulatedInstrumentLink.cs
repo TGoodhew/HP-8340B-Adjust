@@ -78,6 +78,32 @@ public sealed class SimulatedInstrumentLink : IInstrumentLink
         return response;
     }
 
+    /// <summary>
+    /// Binary data the next <see cref="ReadBytes"/> returns. Simulators set this to model a
+    /// learn string or a status-byte pair.
+    /// </summary>
+    public byte[] NextBytes { get; set; } = Array.Empty<byte>();
+
+    /// <summary>The most recent payload passed to <see cref="WriteBytes"/>.</summary>
+    public byte[] LastBytesWritten { get; private set; } = Array.Empty<byte>();
+
+    public byte[] ReadBytes(int count)
+    {
+        // Return exactly what was asked for, padding with zeros, so a driver that miscounts is
+        // caught by its own assertions rather than by a ragged array.
+        var data = new byte[count];
+        Array.Copy(NextBytes, data, Math.Min(count, NextBytes.Length));
+        Log(BusOperation.Read, $"<{count} bytes>");
+        return data;
+    }
+
+    public void WriteBytes(byte[] data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        LastBytesWritten = data;
+        Log(BusOperation.Write, $"<{data.Length} bytes>");
+    }
+
     public byte SerialPoll()
     {
         var status = StatusSequence is not null ? StatusSequence(_pollCount) : StatusByte;

@@ -16,14 +16,39 @@ public static class SimulatedBench
     /// </summary>
     public static SimulatedInstrumentLink LinkFor(string model, string resourceName)
     {
+        var isDut = model.Contains("8340B", StringComparison.OrdinalIgnoreCase);
+
         var link = new SimulatedInstrumentLink(resourceName, command =>
-            command.TrimStart().StartsWith("*IDN?", StringComparison.OrdinalIgnoreCase)
-                ? IdentityFor(model)
-                : string.Empty);
+        {
+            var c = command.TrimStart();
+
+            if (c.StartsWith("*IDN?", StringComparison.OrdinalIgnoreCase))
+                return IdentityFor(model);
+
+            // OI is the 8340B's identification query — it predates *IDN?. Table 3-2 says 19
+            // ASCII characters, so the simulator returns exactly that width.
+            if (isDut && c.StartsWith("OI", StringComparison.OrdinalIgnoreCase))
+                return "HP8340B SIMULATED  "[..19];
+
+            return string.Empty;
+        });
 
         // Bit 3 = RF settled: a simulated instrument is always settled, so WaitSettled returns
         // immediately rather than burning its timeout in tests.
         link.StatusByte = (byte)StatusByte1.RfSettled;
+
+        if (isDut)
+        {
+            // Both status bytes for OS (2b). Byte #2 bit 3 reports the external reference as
+            // selected, so `probe --sim` exercises the same path a real bench does. RF unleveled
+            // is clear: the simulated DUT starts inside its leveled range.
+            link.NextBytes =
+            [
+                (byte)StatusByte1.RfSettled,
+                (byte)StatusByte2.ExternalFreqRefSelected,
+            ];
+        }
+
         return link;
     }
 

@@ -74,13 +74,25 @@ public class SimulatedBenchTests
     }
 
     [Fact]
-    public void ProbeSucceedsWithoutIdnBecauseTheDutPredates4882()
+    public void ProbeIdentifiesTheDutWithOiNotIdn()
     {
+        // The 8340B predates IEEE 488.2 and has no *IDN?. Table 3-2 gives OI (19a) instead.
         var dut = NewDut();
         var result = dut.Probe();
 
         Assert.True(result.Responded);
-        Assert.Contains("status byte", result.Identity);
+        Assert.Contains("8340B", result.Identity);
+        Assert.Contains("OI", dut.Link.History);
+        Assert.DoesNotContain("*IDN?", dut.Link.History);
+    }
+
+    [Fact]
+    public void ProbeReportsTheExternalReferenceState()
+    {
+        // Extended status byte #2 bit 3, read with OS (2b). This is what confirms the DUT is on
+        // the Z3805A rather than trusting the rear-panel switch position.
+        var result = NewDut().Probe();
+        Assert.True(result.ExternalReference);
     }
 
     [Fact]

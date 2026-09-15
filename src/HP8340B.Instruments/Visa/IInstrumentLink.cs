@@ -31,6 +31,23 @@ public interface IInstrumentLink : IDisposable
     string Query(string command);
 
     /// <summary>
+    /// Reads exactly <paramref name="count"/> raw bytes.
+    ///
+    /// Needed because several 8340B queries return BINARY, not text: the learn string is
+    /// 123 bytes (`OL (123b)`) and both status bytes come back as 2 bytes (`OS (2b)`).
+    /// Round-tripping those through a string would corrupt any byte that is not valid text,
+    /// and the learn string is the instrument's entire front-panel state.
+    /// </summary>
+    byte[] ReadBytes(int count);
+
+    /// <summary>
+    /// Writes raw bytes with no terminator added. Used for the learn string (`IL 123b`), where
+    /// the instrument expects exactly 123 bytes after the command and a stray newline would be
+    /// taken as data.
+    /// </summary>
+    void WriteBytes(byte[] data);
+
+    /// <summary>
     /// GPIB serial poll: returns the device's status byte without a data transfer. The 8340B
     /// predates IEEE 488.2 and has no *OPC?, so settle-waiting is built on this — status byte
     /// bit 3 "RF settled", bit 4 "end of sweep". See <see cref="StatusPoller"/>.
