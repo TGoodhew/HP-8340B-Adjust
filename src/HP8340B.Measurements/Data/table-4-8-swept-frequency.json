@@ -1,0 +1,386 @@
+{
+  "source": "HP 8340B/41B service manual, Table 4-8, Swept Frequency Accuracy Test Frequencies, p. 4-24. Transcribed from the rendered page image, not the text layer, which damages the numerals in this table.",
+  "note": "Centre frequencies are computed as start + {0.2, 0.5, 0.8} * span and were verified against every printed row. The manual misprints the 80%-of-band value on row 1 as 2.300792; start + 0.8 * span gives 2.3000792, which is what the other 26 rows' pattern requires.",
+  "limits": "The printed test limits ARE the specification. They do not follow one percentage across the table, so do not compute them: below a 5 MHz span they are 1% of span, from 5 MHz to about 100 MHz they are 2%, from about 500 MHz they return to 1%, and for the widest spans they are capped at 50 MHz absolute. Within the 2% group, rows 11 and 12 read about 2.04% and row 17 about 1.98% - all three are transcribed as printed rather than rounded to the pattern.",
+  "design": "The stop frequencies come in pairs that bracket span boundaries at 100 kHz, 500 kHz, 5 MHz, 50 MHz, 100 MHz, 500 MHz and 5 GHz, so the test exercises the instrument either side of each point where its behaviour changes. That is why consecutive rows look like near-duplicates.",
+  "rows": [
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.300099,
+      "sweepTimeMs": 3000,
+      "resolutionBandwidthKHz": 0.3,
+      "testLimitKHz": 0.99,
+      "centreFrequencyGHz": {
+        "20": 2.3000198,
+        "50": 2.3000495,
+        "80": 2.3000792
+      },
+      "spanMHz": 0.099,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.300101,
+      "sweepTimeMs": 3000,
+      "resolutionBandwidthKHz": 0.3,
+      "testLimitKHz": 1.01,
+      "centreFrequencyGHz": {
+        "20": 2.3000202,
+        "50": 2.3000505,
+        "80": 2.3000808
+      },
+      "spanMHz": 0.101,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.300499,
+      "sweepTimeMs": 1000,
+      "resolutionBandwidthKHz": 1.0,
+      "testLimitKHz": 4.99,
+      "centreFrequencyGHz": {
+        "20": 2.3000998,
+        "50": 2.3002495,
+        "80": 2.3003992
+      },
+      "spanMHz": 0.499,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.300501,
+      "sweepTimeMs": 1000,
+      "resolutionBandwidthKHz": 1.0,
+      "testLimitKHz": 5.01,
+      "centreFrequencyGHz": {
+        "20": 2.3001002,
+        "50": 2.3002505,
+        "80": 2.3004008
+      },
+      "spanMHz": 0.501,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.30499,
+      "sweepTimeMs": 300,
+      "resolutionBandwidthKHz": 3.0,
+      "testLimitKHz": 49.9,
+      "centreFrequencyGHz": {
+        "20": 2.300998,
+        "50": 2.302495,
+        "80": 2.303992
+      },
+      "spanMHz": 4.99,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.30501,
+      "sweepTimeMs": 300,
+      "resolutionBandwidthKHz": 3.0,
+      "testLimitKHz": 100.02,
+      "centreFrequencyGHz": {
+        "20": 2.301002,
+        "50": 2.302505,
+        "80": 2.304008
+      },
+      "spanMHz": 5.01,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.31,
+      "sweepTimeMs": 300,
+      "resolutionBandwidthKHz": 3.0,
+      "testLimitKHz": 200.0,
+      "centreFrequencyGHz": {
+        "20": 2.302,
+        "50": 2.305,
+        "80": 2.308
+      },
+      "spanMHz": 10.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.32,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 10.0,
+      "testLimitKHz": 400.0,
+      "centreFrequencyGHz": {
+        "20": 2.304,
+        "50": 2.31,
+        "80": 2.316
+      },
+      "spanMHz": 20.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.33,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 10.0,
+      "testLimitKHz": 600.0,
+      "centreFrequencyGHz": {
+        "20": 2.306,
+        "50": 2.315,
+        "80": 2.324
+      },
+      "spanMHz": 30.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.34,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 30.0,
+      "testLimitKHz": 800.0,
+      "centreFrequencyGHz": {
+        "20": 2.308,
+        "50": 2.32,
+        "80": 2.332
+      },
+      "spanMHz": 40.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.349,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 30.0,
+      "testLimitKHz": 998.0,
+      "centreFrequencyGHz": {
+        "20": 2.3098,
+        "50": 2.3245,
+        "80": 2.3392
+      },
+      "spanMHz": 49.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.3501,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 30.0,
+      "testLimitKHz": 1020.0,
+      "centreFrequencyGHz": {
+        "20": 2.31002,
+        "50": 2.32505,
+        "80": 2.34008
+      },
+      "spanMHz": 50.1,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.36,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 30.0,
+      "testLimitKHz": 1200.0,
+      "centreFrequencyGHz": {
+        "20": 2.312,
+        "50": 2.33,
+        "80": 2.348
+      },
+      "spanMHz": 60.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.37,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 30.0,
+      "testLimitKHz": 1400.0,
+      "centreFrequencyGHz": {
+        "20": 2.314,
+        "50": 2.335,
+        "80": 2.356
+      },
+      "spanMHz": 70.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.38,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 30.0,
+      "testLimitKHz": 1600.0,
+      "centreFrequencyGHz": {
+        "20": 2.316,
+        "50": 2.34,
+        "80": 2.364
+      },
+      "spanMHz": 80.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.39,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 30.0,
+      "testLimitKHz": 1800.0,
+      "centreFrequencyGHz": {
+        "20": 2.318,
+        "50": 2.345,
+        "80": 2.372
+      },
+      "spanMHz": 90.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.3999,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 30.0,
+      "testLimitKHz": 1980.0,
+      "centreFrequencyGHz": {
+        "20": 2.31998,
+        "50": 2.34995,
+        "80": 2.37992
+      },
+      "spanMHz": 99.9,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.4001,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 100.0,
+      "testLimitKHz": 2002.0,
+      "centreFrequencyGHz": {
+        "20": 2.32002,
+        "50": 2.35005,
+        "80": 2.38008
+      },
+      "spanMHz": 100.1,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.799,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 1000.0,
+      "testLimitKHz": 4990.0,
+      "centreFrequencyGHz": {
+        "20": 2.3998,
+        "50": 2.5495,
+        "80": 2.6992
+      },
+      "spanMHz": 499.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 2.801,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 1000.0,
+      "testLimitKHz": 5010.0,
+      "centreFrequencyGHz": {
+        "20": 2.4002,
+        "50": 2.5505,
+        "80": 2.7008
+      },
+      "spanMHz": 501.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 7.29,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 3000.0,
+      "testLimitKHz": 49900.0,
+      "centreFrequencyGHz": {
+        "20": 3.298,
+        "50": 4.795,
+        "80": 6.292
+      },
+      "spanMHz": 4990.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 7.31,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 3000.0,
+      "testLimitKHz": 50000.0,
+      "centreFrequencyGHz": {
+        "20": 3.302,
+        "50": 4.805,
+        "80": 6.308
+      },
+      "spanMHz": 5010.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 8.3,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 3000.0,
+      "testLimitKHz": 50000.0,
+      "centreFrequencyGHz": {
+        "20": 3.5,
+        "50": 5.3,
+        "80": 7.1
+      },
+      "spanMHz": 6000.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 16.452,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 3000.0,
+      "testLimitKHz": 50000.0,
+      "centreFrequencyGHz": {
+        "20": 5.1304,
+        "50": 9.376,
+        "80": 13.6216
+      },
+      "spanMHz": 14152.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 20.0,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 3000.0,
+      "testLimitKHz": 50000.0,
+      "centreFrequencyGHz": {
+        "20": 5.84,
+        "50": 11.15,
+        "80": 16.46
+      },
+      "spanMHz": 17700.0,
+      "band4Only": false
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 24.55,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 3000.0,
+      "testLimitKHz": 50000.0,
+      "centreFrequencyGHz": {
+        "20": 6.75,
+        "50": 13.425,
+        "80": 20.1
+      },
+      "spanMHz": 22250.0,
+      "band4Only": true
+    },
+    {
+      "startGHz": 2.3,
+      "stopGHz": 26.5,
+      "sweepTimeMs": 100,
+      "resolutionBandwidthKHz": 3000.0,
+      "testLimitKHz": 50000.0,
+      "centreFrequencyGHz": {
+        "20": 7.14,
+        "50": 14.4,
+        "80": 21.66
+      },
+      "spanMHz": 24200.0,
+      "band4Only": true
+    }
+  ]
+}

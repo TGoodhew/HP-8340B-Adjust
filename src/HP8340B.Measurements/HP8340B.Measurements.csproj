@@ -4,4 +4,9 @@
     <ProjectReference Include="..\HP8340B.Instruments\HP8340B.Instruments.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Manual test-frequency tables as data, transcribed from the page images. -->
+    <None Update="Data\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

@@ -29,12 +29,12 @@ project brief and the manual disagree, the manual wins and the difference is rec
 | 10 | 2026-09-15 | **Both status bytes are readable with `OS (2b)`**, so extended status byte #2 - RF unleveled, external reference selected - is available over the bus as the design assumed. |
 | 11 | 2026-09-15 | **Correction 1 withdrawn: the original brief was right.** Band 0 output power accuracy at +10 to −9.95 dBm **is ±0.9 dB**. Table 4-9 was read off the rendered page image and the Band 0 column starts at that row — the "+18 to +10 dBm" row above it is a **dash**, because band 0's maximum leveled power is +10 dBm so there is no above-spec range to specify. Text extraction drops the dash and shifts every Band 0 value up one row, which is what produced the false correction. This is the column-drift trap documented in [manual/README.md](manual/README.md), and it caught this project's own transcription. |
 | 12 | 2026-09-15 | **Table 4-9 fully transcribed** from the rendered page images for all four options, both the accuracy and flatness blocks, every level row. Implemented as `PowerAccuracy` with tests. Two edge cases the manual leaves implicit are decided in code: adjacent rows share their top boundary (+10 dBm is in both "+18 to +10" and "+10 to −9.95"), and rows are then gapped by 0.05 dB (−9.95 then −10). |
+| 13 | 2026-09-15 | **Table 4-8 transcribed** from the rendered page image as `src/HP8340B.Measurements/Data/table-4-8-swept-frequency.json`, 27 rows. The three centre-frequency columns are computed as start + {0.2, 0.5, 0.8} x span, which matches every printed row and so doubles as an arithmetic check on the stop frequencies. Two things worth knowing: the manual **misprints row 1's 80 % value** as 2.300792 where the pattern requires 2.3000792; and the **test limits follow no single percentage** — 1 % of span below 5 MHz, 2 % from 5 MHz to about 100 MHz, 1 % again from about 500 MHz, then capped at 50 MHz absolute. Use the table, never a formula. |
 
 ### Still to verify
 
-- **Table 4-8 swept frequency accuracy test frequencies** and **Table 4-2 equipment** both
-  extract with OCR damage to the numerals (`2-32` for `2.32`, `24.55'` for `24.55`). Transcribe
-  from the page image, not the text layer.
+- **Table 4-2 equipment** extracts with OCR damage to the numerals. Transcribe from the page
+  image if it is ever needed in code; [GEAR-MAP.md](GEAR-MAP.md) already covers it in prose.
 - **The spurious specification table** below is still as the project brief gave it; it has not
   been re-checked against the specification pages.
 
