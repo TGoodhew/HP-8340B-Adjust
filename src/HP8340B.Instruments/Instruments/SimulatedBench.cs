@@ -25,6 +25,19 @@ public static class SimulatedBench
             if (c.StartsWith("*IDN?", StringComparison.OrdinalIgnoreCase))
                 return IdentityFor(model);
 
+            // The 3458A answers ID? with a bare model number.
+            if (model.Contains("3458A", StringComparison.OrdinalIgnoreCase)
+                && c.StartsWith("ID?", StringComparison.OrdinalIgnoreCase))
+                return "HP3458A";
+
+            // The 5351A and the 3458A are talkers: a bare read returns the current measurement,
+            // so the responder answers whatever was last written rather than only queries.
+            if (model.Contains("5351A", StringComparison.OrdinalIgnoreCase))
+                return "10000000000.0";
+
+            if (model.Contains("3458A", StringComparison.OrdinalIgnoreCase))
+                return "5.0000E-3";
+
             // OI is the 8340B's identification query — it predates *IDN?. Table 3-2 says 19
             // ASCII characters, so the simulator returns exactly that width.
             if (isDut && c.StartsWith("OI", StringComparison.OrdinalIgnoreCase))
@@ -82,6 +95,12 @@ public static class SimulatedBench
         if (config.Model.Contains("8563E", StringComparison.OrdinalIgnoreCase))
             return new Hp8563E(new SimulatedAnalyzer().CreateLink(resourceName), config.Role);
 
+        if (config.Model.Contains("5351A", StringComparison.OrdinalIgnoreCase))
+            return new Hp5351A(link, config.Role);
+
+        if (config.Model.Contains("3458A", StringComparison.OrdinalIgnoreCase))
+            return new Hp3458A(link, config.Role);
+
         return IsLegacy(config.Model)
             ? new LegacyGpibInstrument(config.Role, config.Model, link, IsListenOnly(config.Model))
             : new ScpiInstrument(config.Role, config.Model, link);
@@ -122,6 +141,12 @@ public static class InstrumentFactory
 
         if (config.Model.Contains("8563E", StringComparison.OrdinalIgnoreCase))
             return new Hp8563E(link, config.Role);
+
+        if (config.Model.Contains("5351A", StringComparison.OrdinalIgnoreCase))
+            return new Hp5351A(link, config.Role);
+
+        if (config.Model.Contains("3458A", StringComparison.OrdinalIgnoreCase))
+            return new Hp3458A(link, config.Role);
 
         return SimulatedBench.IsLegacy(config.Model)
             ? new LegacyGpibInstrument(config.Role, config.Model, link,
