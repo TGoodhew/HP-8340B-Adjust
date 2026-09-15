@@ -74,10 +74,13 @@ public static class SimulatedBench
         // rather than only on the bench.
         if (config.TimeoutMs is { } ms) link.Timeout = TimeSpan.FromMilliseconds(ms);
 
-        // The DUT gets the real driver over a simulated link, so its command builders and
-        // status-byte logic are exercised identically to a hardware run.
+        // The DUT and the analyzer get their real drivers over simulated links, so their command
+        // builders are exercised identically to a hardware run.
         if (config.Role.Equals("dut", StringComparison.OrdinalIgnoreCase))
             return new Hp8340B(link);
+
+        if (config.Model.Contains("8563E", StringComparison.OrdinalIgnoreCase))
+            return new Hp8563E(new SimulatedAnalyzer().CreateLink(resourceName), config.Role);
 
         return IsLegacy(config.Model)
             ? new LegacyGpibInstrument(config.Role, config.Model, link, IsListenOnly(config.Model))
@@ -116,6 +119,9 @@ public static class InstrumentFactory
 
         if (config.Role.Equals("dut", StringComparison.OrdinalIgnoreCase))
             return new Hp8340B(link);
+
+        if (config.Model.Contains("8563E", StringComparison.OrdinalIgnoreCase))
+            return new Hp8563E(link, config.Role);
 
         return SimulatedBench.IsLegacy(config.Model)
             ? new LegacyGpibInstrument(config.Role, config.Model, link,
