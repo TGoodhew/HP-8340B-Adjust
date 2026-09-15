@@ -38,11 +38,16 @@
     { "role": "switch-matrix",      "model": "Agilent 3499A",  "address": "TBD",
       "note": "2x 33311C (26.5 GHz), several 33311B (18 GHz), 44472A dual 1:4 VHF. Slot map TBD — `probe` queries module ID per slot." },
 
+    // Standing second absolute-power path. Reads the 848x sensors, which the 432A cannot, and
+    // is on HP-IB so it automates. Sensor models still TBD — see the D-04 decision issue.
+    { "role": "power-meter",        "model": "HP 437B",  "address": "TBD",
+      "note": "Reads 8481A/B/H, 8482A/B/H, 8483A, 8485A, R/Q/W8486A and the 8484A/848xD low-power sensors. With a borrowed 8485A this makes band 4 Spec." },
+
     // Borrowed kit. present=false until it is physically on the bench; when a borrowed
     // 26.5 GHz sensor is present, band-4 power measurements upgrade from Relative to Spec.
     { "role": "usb-power-sensor",   "model": "Keysight U8485A", "address": "TBD", "present": false,
       "note": "Borrowed. DC/10 MHz-33 GHz. Upgrades 4-5 and 5-14 step 30 in band 4 to Spec." },
-    { "role": "power-meter",        "model": "TBD (435/436/437/438/E441x)", "address": "TBD", "present": false,
-      "note": "Needed to read the 848x sensors and a borrowed 8485A. Do I have one? — decision issue." }
+    { "role": "borrowed-sensor",    "model": "Keysight 8485A", "address": "n/a (reads via the 437B)", "present": false,
+      "note": "Borrowed. 50 MHz-26.5 GHz, -30 to +20 dBm, 3.5 mm. Reads on the 437B, so unlike the U8485A it needs nothing else to arrive with it." }
   ]
 }

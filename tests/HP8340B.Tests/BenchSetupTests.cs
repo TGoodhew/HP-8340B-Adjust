@@ -96,5 +96,19 @@ public class BenchSetupTests
     {
         var bench = BenchConfig.Load(Path.Combine(AppContext.BaseDirectory, "bench.json"));
         Assert.False(bench.ByRole("usb-power-sensor")!.Present);
+        Assert.False(bench.ByRole("borrowed-sensor")!.Present);
+    }
+
+    [Fact]
+    public void The437BIsAStandingInstrumentNotBorrowedKit()
+    {
+        // It reads the 848x sensors, which the 432A cannot, and it is on HP-IB. That makes it the
+        // second absolute-power path rather than something that has to arrive with a borrowed
+        // sensor. Its address is still TBD (D-04).
+        var meter = BenchConfig.Load(Path.Combine(AppContext.BaseDirectory, "bench.json"))
+            .ByRole("power-meter")!;
+
+        Assert.Equal("HP 437B", meter.Model);
+        Assert.True(meter.Present);
     }
 }

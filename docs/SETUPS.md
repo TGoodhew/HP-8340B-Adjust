@@ -184,14 +184,14 @@ flowchart LR
 
 ### Physical settings (cannot be set over the bus)
 
-- Which sensor is in use is a config choice: 8902A+11792A (50 MHz-18 GHz), U8485A or 8485A when borrowed (band 4), 432A+478A (10-50 MHz and cross-checks).
+- Which sensor is in use is a config choice: 8902A+11792A (50 MHz-18 GHz), 437B + an 848x sensor (second automatable path), 8485A on the 437B or a borrowed U8485A for band 4, 432A+478A thermistor as the independent check below 10 GHz.
 - 432A range and CAL FACTOR dials set by hand and recorded in the session.
-- Zero and calibrate the 11792A against the 8902A 50 MHz calibrator before the block.
+- Zero and calibrate the 11792A against the 8902A 50 MHz calibrator before the block; zero and calibrate the 437B against its own 50 MHz 1 mW reference.
 
 ### Safety limits
 
 - REFUSE any DUT setting above +7 dBm while the 478A thermistor mount is the selected sensor (10 mW rating) unless a characterised pad is declared (rule 5).
-- REFUSE above +17 dBm while the 11792A or an 848x sensor is selected, unless a characterised pad is declared (rule 5).
+- REFUSE above +17 dBm while the 11792A or an 848x sensor is selected, unless a characterised pad is declared (rule 5). Per-sensor limits differ: an 8481A is -30 to +20 dBm, an 8482B reaches +44 dBm - the driver enforces the limit for the sensor actually configured.
 - The 11792A covers 50 MHz-18 GHz only. Above 18 GHz results are Relative at best without a borrowed 26.5 GHz sensor.
 
 ### Wiring self-check
