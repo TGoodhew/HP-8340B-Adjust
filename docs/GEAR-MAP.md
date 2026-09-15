@@ -15,7 +15,7 @@ what is here.
 | Frequency counter to DUT max (5343A) | **HP 5351A**, 26.5 GHz, GPIB 14 | Covered. Lock DUT and counter to the same 10 MHz. |
 | 10 MHz frequency standard (5061A) | **Z3805A GPSDO** (plus a BG7TBL GPSDO) | Covered. Distributed through a Symmetricom distribution amplifier to the 8340B ext ref, 8563E, 5351A, 8673B, 3325B and E4438C. Only some of these can be *confirmed* over the bus — see below. |
 | DVM (3456A) | **HP 3458A**, or a **34401A** or **DM3058** — the role is pluggable | Covered. The 3458A is not required: see "Which multimeter" below. |
-| Oscilloscope, 50 Ω input, A-vs-B | **Rigol DS1104Z** (LAN) | XY mode covered. Input is 1 MΩ only, so a 50 Ω feedthrough (HP 10100C, itself in Table 4-2) goes in front of the detector. Trace readout over SCPI drives the live XY view. |
+| Oscilloscope, 50 Ω input, A-vs-B | **Rigol DS1104Z** (LAN) | XY mode covered. Its 1 MΩ input is **better** for the detector than a 50 Ω one, not worse — **do not put the 10100C feedthrough between the detector and the scope**, see below. Trace readout over SCPI drives the live XY view. |
 | Crystal detector, negative, to 26.5 GHz (8473C) | **HP 8473C** (3.5 mm, 26.5 GHz), **8470B** (N, 18 GHz), **8472B** (SMA, 18 GHz) | Covered. The 8473C is the manual's own choice. **No positive-polarity detector** — only 5-15 step 26 wants one, and that step is skipped. |
 | Power meter + 8481A / 8485A sensors (436A) | **HP 437B + HP 8481A + HP 8485A** — exactly the sensors Table 4-2 asks for; plus **HP 8902A + 11792A** (50 MHz – 18 GHz, HP-IB) and **HP 432A + 478A** thermistor (10 MHz – 10 GHz) | **Fully covered across the entire instrument, and better than the manual's 436A.** The 8481A (10 MHz – 18 GHz) and 8485A (to 26.5 GHz) on the HP-IB 437B span the whole 10 MHz – 26.5 GHz range as `Spec`, automatable. The 11792A is a second automatable path below 18 GHz and the thermistor a third, independent one below 10 GHz. |
 | Second sweeper as LO + mixer 0955-0307 | **HP 8673B** (2–26 GHz), **Agilent E4438C** (≤ 6 GHz, very low phase noise) | Not needed for squegging (8563E direct). Needed for the 4-9 quadrature method and 4-16 FM flatness, where the missing part is a broadband mixer. |
@@ -106,6 +106,40 @@ So the choice is driven by convenience, not accuracy:
 `Hp432A.MeterIsAdequate` computes all of this from each meter's own published specification, so
 swapping meters re-answers the question automatically and a reading records which meter took it
 and what that cost.
+
+### Do not put the 50 Ω feedthrough in front of the crystal detector
+
+An earlier note here said the DS1104Z's 1 MΩ input was a shortcoming to be fixed with a 10100C
+feedthrough, so that the scope would present the 50 Ω the manual's setup assumes. **That is
+backwards for the detector**, and the 8470B's own manual says so:
+
+- Output impedance: **1 to 2 kΩ, typically 1.3 kΩ**, shunted by 35–65 pF.
+- Low-level sensitivity `> 0.5 mVdc/µW CW` — carrying footnote 5, **"External load resistance
+  > 50 kΩ"**.
+- Option 002's square-law specification (±0.5 dB over ≥ 30 dB) holds **"working into an external
+  load > 8 kΩ"**.
+
+A 50 Ω load on a 1.3 kΩ source is a divider of 50/1350 — **−28.6 dB**. It voids the sensitivity
+specification, voids the square-law specification, and pushes the bottom of the useful range into
+the detector's own noise. Modelled against the manual's figures:
+
+| Level | Into 1 MΩ | Into 50 Ω | Detector noise |
+|---|---|---|---|
+| 0 dBm | 220 mV | 8.2 mV | 50 µVpp |
+| −20 dBm | 4.4 mV | 164 µV | 50 µVpp |
+| −30 dBm | 480 µV | **18 µV** | 50 µVpp — signal is *below* the noise |
+
+So the scope's 1 MΩ input is the right thing here and the feedthrough stays off. Keep the 10100C
+for wherever a genuine 50 Ω termination is wanted — terminating a pulse source for 4-11 to 4-14,
+for instance — but not between the detector and the scope.
+
+`DetectorCalibrator.CheckSetup` warns about this with the number, and the calibration records the
+load it was taken with, so a fit taken one way cannot quietly be used the other.
+
+**Caveat:** the 8473C is the detector that matters most here (it is the manual's own choice and
+the only one reaching band 4), and **its manual is not in the local library**. The figures above
+are the 8470B's, carried across as same-family estimates. `Detectors.Hp8473C` says so in its
+`Source`, and calibrating with it raises a warning.
 
 ## How 4-9 phase noise is done here
 
