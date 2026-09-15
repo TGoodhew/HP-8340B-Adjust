@@ -46,6 +46,18 @@
     { "role": "power-meter",        "model": "HP 437B",  "address": "TBD", "timeoutMs": 15000,
       "note": "Reads both sensors below. Zero and calibrate against its own 50 MHz 1 mW reference." },
 
+    // The thermistor path. The 432A has NO HP-IB at all: it is read through the 3458A, with the
+    // 44472A in the 3499A selecting between its rear-panel RECORDER, V_RF and V_COMP terminals.
+    // Independent of the diode sensors above -- different physics, different traceability chain --
+    // and the only sensor on this bench for 10-50 MHz, which 4-5 needs.
+    { "role": "thermistor-power-meter", "model": "HP 432A", "address": "n/a (read via the 3458A)",
+      "probeable": false,
+      "note": "No HP-IB. RANGE, CALIBRATION FACTOR and MOUNT RESISTANCE are front-panel only and must be declared. MOUNT RESISTANCE must be 200 ohms for the 478A." },
+
+    { "role": "thermistor-mount",      "model": "HP 478A", "address": "n/a (plugs into the 432A)",
+      "probeable": false,
+      "note": "10 MHz - 10 GHz, 200 ohms, 10 mW maximum. Rule 5 REFUSES any DUT setting above +7 dBm into this mount. Its six calibration points are printed on the mount itself and must be entered -- see decision D-06." },
+
     // Sensors are not separately addressable — they plug into the 437B. Listed so the driver can
     // enforce the right frequency range and power limit for whichever is connected, and so the
     // session records which one produced a reading.
