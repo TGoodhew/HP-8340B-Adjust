@@ -38,6 +38,24 @@ public static class SimulatedBench
             if (model.Contains("3458A", StringComparison.OrdinalIgnoreCase))
                 return "5.0000E-3";
 
+            // DS1104Z: a preamble and a synthetic detector trace, so the XY view is developable
+            // offline. The trace falls away at both ends like a real swept envelope, so a broken
+            // minimum-finder cannot pass against a flat line.
+            if (model.Contains("DS1104Z", StringComparison.OrdinalIgnoreCase))
+            {
+                if (c.StartsWith(":WAVeform:PREamble?", StringComparison.OrdinalIgnoreCase))
+                    return "2,0,600,1,1e-06,0,0,0.001,0,0";
+
+                if (c.StartsWith(":WAVeform:DATA?", StringComparison.OrdinalIgnoreCase))
+                    return string.Join(",", Enumerable.Range(0, 600).Select(i =>
+                    {
+                        var x = (i - 300) / 300.0;
+                        // Negative-going: crystal detectors on this bench are negative polarity.
+                        return (-0.5 + 0.4 * x * x).ToString("0.####",
+                            System.Globalization.CultureInfo.InvariantCulture);
+                    }));
+            }
+
             // OI is the 8340B's identification query — it predates *IDN?. Table 3-2 says 19
             // ASCII characters, so the simulator returns exactly that width.
             if (isDut && c.StartsWith("OI", StringComparison.OrdinalIgnoreCase))
@@ -101,6 +119,9 @@ public static class SimulatedBench
         if (config.Model.Contains("3458A", StringComparison.OrdinalIgnoreCase))
             return new Hp3458A(link, config.Role);
 
+        if (config.Model.Contains("DS1104Z", StringComparison.OrdinalIgnoreCase))
+            return new RigolDs1104Z(link, config.Role);
+
         return IsLegacy(config.Model)
             ? new LegacyGpibInstrument(config.Role, config.Model, link, IsListenOnly(config.Model))
             : new ScpiInstrument(config.Role, config.Model, link);
@@ -147,6 +168,9 @@ public static class InstrumentFactory
 
         if (config.Model.Contains("3458A", StringComparison.OrdinalIgnoreCase))
             return new Hp3458A(link, config.Role);
+
+        if (config.Model.Contains("DS1104Z", StringComparison.OrdinalIgnoreCase))
+            return new RigolDs1104Z(link, config.Role);
 
         return SimulatedBench.IsLegacy(config.Model)
             ? new LegacyGpibInstrument(config.Role, config.Model, link,
