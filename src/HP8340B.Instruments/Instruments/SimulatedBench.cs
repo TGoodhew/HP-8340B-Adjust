@@ -38,6 +38,11 @@ public static class SimulatedBench
             if (model.Contains("3458A", StringComparison.OrdinalIgnoreCase))
                 return "5.0000E-3";
 
+            // The 8902A is a talker returning watts. 1 mW is 0 dBm — the calibrator reference
+            // level, so CalibrateSensor's "is the sensor actually on the calibrator?" guard passes.
+            if (model.Contains("8902A", StringComparison.OrdinalIgnoreCase))
+                return "1.0E-3";
+
             // DS1104Z: a preamble and a synthetic detector trace, so the XY view is developable
             // offline. The trace falls away at both ends like a real swept envelope, so a broken
             // minimum-finder cannot pass against a flat line.
@@ -122,6 +127,12 @@ public static class SimulatedBench
         if (config.Model.Contains("DS1104Z", StringComparison.OrdinalIgnoreCase))
             return new RigolDs1104Z(link, config.Role);
 
+        if (config.Model.Contains("8902A", StringComparison.OrdinalIgnoreCase))
+            return new Hp8902A(link, config.Role);
+
+        if (config.Model.Contains("11713A", StringComparison.OrdinalIgnoreCase))
+            return new Hp11713A(link, config.Role);
+
         return IsLegacy(config.Model)
             ? new LegacyGpibInstrument(config.Role, config.Model, link, IsListenOnly(config.Model))
             : new ScpiInstrument(config.Role, config.Model, link);
@@ -171,6 +182,12 @@ public static class InstrumentFactory
 
         if (config.Model.Contains("DS1104Z", StringComparison.OrdinalIgnoreCase))
             return new RigolDs1104Z(link, config.Role);
+
+        if (config.Model.Contains("8902A", StringComparison.OrdinalIgnoreCase))
+            return new Hp8902A(link, config.Role);
+
+        if (config.Model.Contains("11713A", StringComparison.OrdinalIgnoreCase))
+            return new Hp11713A(link, config.Role);
 
         return SimulatedBench.IsLegacy(config.Model)
             ? new LegacyGpibInstrument(config.Role, config.Model, link,
