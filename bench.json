@@ -1,0 +1,48 @@
+{
+  // The bench as data. Addresses marked "TBD" are unknown; `probe` reports them as
+  // unconfigured rather than trying to open them. Fill them in here, or in a git-ignored
+  // bench.local.json beside this file, which overlays this one entry-by-entry on Role.
+  //
+  // dutOption sets the max-leveled-power limits (manual Table 4-9):
+  //   Standard = front panel out WITH attenuator
+  //   Opt001   = front panel out, no attenuator
+  //   Opt004   = rear panel out with attenuator
+  //   Opt005   = rear panel out, no attenuator
+  "dutOption": "Standard",
+  "dutSerial": "TBD",
+
+  "instruments": [
+    { "role": "dut",                "model": "HP 8340B",  "address": "GPIB0::19::INSTR",
+      "note": "Factory default address is 19 — CONFIRM against the instrument." },
+
+    { "role": "spectrum-analyzer",  "model": "HP 8563E",  "address": "GPIB0::18::INSTR" },
+    { "role": "counter",            "model": "HP 5351A",  "address": "GPIB0::14::INSTR" },
+    { "role": "function-generator", "model": "HP 3325B",  "address": "GPIB0::10::INSTR" },
+    { "role": "plotter",            "model": "HP 7090A",  "address": "GPIB0::6::INSTR" },
+    { "role": "oscilloscope",       "model": "Rigol DS1104Z",
+      "address": "TCPIP0::192.168.1.145::inst0::INSTR",
+      "note": "Confirm the LAN address has not moved." },
+
+    { "role": "dmm",                "model": "HP 3458A",  "address": "TBD" },
+    { "role": "measuring-receiver", "model": "HP 8902A",  "address": "TBD",
+      "note": "With the 11792A sensor module (50 MHz-18 GHz) — the primary absolute-power path." },
+    { "role": "lo-source",          "model": "HP 8673B",  "address": "TBD" },
+    { "role": "switch-driver",      "model": "HP 11713A", "address": "TBD",
+      "note": "Listen-only: presence cannot be confirmed over the bus." },
+    { "role": "pulse-generator",    "model": "HP 8116A",  "address": "TBD" },
+    { "role": "audio-analyzer",     "model": "HP 8903B",  "address": "TBD",
+      "note": "Closes the 5-5 step 48 active-probe gap (M2-09)." },
+    { "role": "vector-generator",   "model": "Agilent E4438C", "address": "TBD",
+      "note": "Frequency option TBD (1/2/3/4/6 GHz). Clean low-band LO and phase-noise baseline source." },
+    { "role": "arb-generator",      "model": "Rigol DG1032Z",  "address": "TBD" },
+    { "role": "switch-matrix",      "model": "Agilent 3499A",  "address": "TBD",
+      "note": "2x 33311C (26.5 GHz), several 33311B (18 GHz), 44472A dual 1:4 VHF. Slot map TBD — `probe` queries module ID per slot." },
+
+    // Borrowed kit. present=false until it is physically on the bench; when a borrowed
+    // 26.5 GHz sensor is present, band-4 power measurements upgrade from Relative to Spec.
+    { "role": "usb-power-sensor",   "model": "Keysight U8485A", "address": "TBD", "present": false,
+      "note": "Borrowed. DC/10 MHz-33 GHz. Upgrades 4-5 and 5-14 step 30 in band 4 to Spec." },
+    { "role": "power-meter",        "model": "TBD (435/436/437/438/E441x)", "address": "TBD", "present": false,
+      "note": "Needed to read the 848x sensors and a borrowed 8485A. Do I have one? — decision issue." }
+  ]
+}

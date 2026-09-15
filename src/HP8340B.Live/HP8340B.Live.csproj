@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Live plot windows for the pot-turning views (M2-02, M2-03, M2-04).
+    ScottPlot on a WinForms host is PROPOSED, not decided: decision issue M2-01 must be
+    answered before any package reference is added here. Until then this project holds only
+    the view interfaces so the measurement code can be written against them.
+  -->
+  <PropertyGroup>
+    <UseWindowsForms>false</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HP8340B.Measurements\HP8340B.Measurements.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\HP8340B.Bench\HP8340B.Bench.csproj" />
+    <ProjectReference Include="..\HP8340B.Measurements\HP8340B.Measurements.csproj" />
+  </ItemGroup>
+
+</Project>

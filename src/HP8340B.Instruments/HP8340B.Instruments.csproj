@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!-- VISA.NET shared components. At runtime GlobalResourceManager dispatches to the
+         installed vendor provider (NI VISA.NET 26.0 here, which ships a net6.0 assembly
+         under IVI Foundation\VISA\Microsoft.NET\VendorAssemblies). -->
+    <PackageReference Include="IviFoundation.Visa" Version="8.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="HP8340B.Tests" />
+  </ItemGroup>
+
+</Project>

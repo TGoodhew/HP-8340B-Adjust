@@ -1,0 +1,45 @@
+## .NET / Visual Studio
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userprefs
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+artifacts/
+dist/
+
+## NuGet
+*.nupkg
+packages/
+.nuget/
+
+## Rider / ReSharper
+.idea/
+_ReSharper*/
+*.DotSettings.user
+
+## Service-manual PDFs and text extracts.
+## Repo rule 7: manual excerpts are never committed. The extract script IS committed
+## so anyone can regenerate the text from their own copy of the manual.
+docs/manual/*
+!docs/manual/README.md
+!docs/manual/extract.sh
+
+## Measurement sessions and calibration backups — bench data, not source.
+sessions/*
+!sessions/README.md
+
+## Local, machine-specific instrument addresses and borrowed-kit flags.
+bench.local.json
+
+## OS
+Thumbs.db
+desktop.ini
+.DS_Store

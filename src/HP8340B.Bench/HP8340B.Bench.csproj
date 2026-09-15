@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\HP8340B.Instruments\HP8340B.Instruments.csproj" />
+    <ProjectReference Include="..\HP8340B.Measurements\HP8340B.Measurements.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The setup catalogue is data, editable without a rebuild (D.4). -->
+    <None Update="Data\setups.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

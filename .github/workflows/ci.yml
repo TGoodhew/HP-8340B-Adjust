@@ -1,0 +1,44 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore: [ '**.md', 'LICENSE' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore HP-8340B-Adjust.sln
+
+      - name: Build (Release)
+        run: dotnet build HP-8340B-Adjust.sln -c Release --no-restore
+
+      # Repo rule 4: simulators are first-class — the whole suite must pass with no hardware.
+      - name: Test
+        run: dotnet test HP-8340B-Adjust.sln -c Release --no-build --verbosity normal
+
+      # The CI runner has no NI-VISA and no instruments, so this also proves --sim never
+      # touches a real transport.
+      - name: Simulated probe
+        shell: pwsh
+        run: |
+          dotnet run --project src/HP8340B.Cli -c Release --no-build -- probe --sim
+          if ($LASTEXITCODE -ne 0) { throw "Simulated probe FAILED, exit $LASTEXITCODE" }
+          dotnet run --project src/HP8340B.Cli -c Release --no-build -- codes
+          if ($LASTEXITCODE -ne 0) { throw "Code table listing FAILED, exit $LASTEXITCODE" }
+          dotnet run --project src/HP8340B.Cli -c Release --no-build -- setup list
+          if ($LASTEXITCODE -ne 0) { throw "Setup list FAILED, exit $LASTEXITCODE" }

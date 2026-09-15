@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>hp8340b</AssemblyName>
+    <RootNamespace>HP8340B.Cli</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" Version="0.49.1" />
+    <PackageReference Include="Spectre.Console.Cli" Version="0.49.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HP8340B.Bench\HP8340B.Bench.csproj" />
+    <ProjectReference Include="..\HP8340B.Instruments\HP8340B.Instruments.csproj" />
+    <ProjectReference Include="..\HP8340B.Measurements\HP8340B.Measurements.csproj" />
+    <ProjectReference Include="..\HP8340B.Procedures\HP8340B.Procedures.csproj" />
+    <ProjectReference Include="..\HP8340B.Reports\HP8340B.Reports.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\bench.json" Link="bench.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

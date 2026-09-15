@@ -1,0 +1,26 @@
+<Project>
+
+  <!--
+    Shared build settings for every project in HP-8340B-Adjust.
+
+    Target framework note: HP-Attenuator targets net472 because it uses the
+    Kelary.Ivi.Visa .NET Framework build. NI VISA.NET 26.0 on this machine ships a
+    .NET 6.0 vendor assembly (Microsoft.NET/VendorAssemblies/ni/8.0), so modern .NET
+    resolves the installed NI provider through the IviFoundation.Visa package.
+    -windows is required for the ScottPlot WinForms live views (M2-01).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- NI-VISA native interop resolves the matching bitness; the installed
+         runtime here is 64-bit. -->
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>
