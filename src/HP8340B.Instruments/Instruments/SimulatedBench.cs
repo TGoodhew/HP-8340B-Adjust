@@ -111,9 +111,11 @@ public static class SimulatedBench
         if (config.TimeoutMs is { } ms) link.Timeout = TimeSpan.FromMilliseconds(ms);
 
         // The DUT and the analyzer get their real drivers over simulated links, so their command
-        // builders are exercised identically to a hardware run.
+        // builders are exercised identically to a hardware run. The DUT's link comes from the
+        // physical model in SimulatedSweeper, so its status bytes -- UNLEVELED in particular --
+        // mean what they mean on hardware.
         if (config.Role.Equals("dut", StringComparison.OrdinalIgnoreCase))
-            return new Hp8340B(link);
+            return new Hp8340B(new SimulatedSweeper().CreateLink(resourceName));
 
         if (config.Model.Contains("8563E", StringComparison.OrdinalIgnoreCase))
             return new Hp8563E(new SimulatedAnalyzer().CreateLink(resourceName), config.Role);
