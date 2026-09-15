@@ -13,7 +13,7 @@ what is here.
 |---|---|---|
 | Spectrum analyzer 0.01–22 GHz (8566B) + K281C HPF for 22–26.5 | **HP 8563E**, 9 kHz – 26.5 GHz, GPIB 18 | **Better.** Covers every band directly, no filter. Replaces the LO + mixer squegging test: look at the carrier ±300 MHz, RBW 300 kHz / VBW 100 kHz, and use zero span for time-domain relaxation oscillation. Also the swept-power envelope viewer (max hold while the DUT sweeps). Has video out and ext trigger. |
 | Frequency counter to DUT max (5343A) | **HP 5351A**, 26.5 GHz, GPIB 14 | Covered. Lock DUT and counter to the same 10 MHz. |
-| 10 MHz frequency standard (5061A) | **Z3805A GPSDO** (plus a BG7TBL GPSDO) | Covered. Distributed to the 8340B ext ref, 8563E, 5351A, 8673B, 3325B and E4438C. |
+| 10 MHz frequency standard (5061A) | **Z3805A GPSDO** (plus a BG7TBL GPSDO) | Covered. Distributed through a Symmetricom distribution amplifier to the 8340B ext ref, 8563E, 5351A, 8673B, 3325B and E4438C. Only some of these can be *confirmed* over the bus — see below. |
 | DVM (3456A) | **HP 3458A** | Covered, overkill. |
 | Oscilloscope, 50 Ω input, A-vs-B | **Rigol DS1104Z** (LAN) | XY mode covered. Input is 1 MΩ only, so a 50 Ω feedthrough (HP 10100C, itself in Table 4-2) goes in front of the detector. Trace readout over SCPI drives the live XY view. |
 | Crystal detector, negative, to 26.5 GHz (8473C) | **HP 8473C** (3.5 mm, 26.5 GHz), **8470B** (N, 18 GHz), **8472B** (SMA, 18 GHz) | Covered. The 8473C is the manual's own choice. **No positive-polarity detector** — only 5-15 step 26 wants one, and that step is skipped. |
@@ -37,6 +37,27 @@ are zero-cost logged transitions rather than re-cabling. Path loss and match mus
 and subtracted (M1-10).
 
 **HP 8903B** audio analyzer. Its 100 kΩ input closes the 5-5 step 48 active-probe gap — see below.
+
+### Which instruments can prove they are on the Z3805A
+
+Everything on the bench is fed from the Z3805A through a Symmetricom distribution amplifier, so
+in practice they are all locked. But "in practice" is not a measurement, and a distribution
+amplifier output that has come loose looks exactly like one that has not. `probe` therefore
+reports what each instrument can actually *prove*, not what the cabinet looks like:
+
+| Instrument | Confirmable over the bus? | How |
+|---|---|---|
+| **8340B** (DUT) | Yes | Extended status byte #2 bit 3, external frequency reference selected. |
+| **8673B** | Yes | Extended status bit 3 (switch in EXT) **and** bit 4 clear (phase locked). Bit 3 alone is set even with no reference connected, so both are required. |
+| **8563E** | Yes | `FREF?` (programming guide p. 477) returns INT or EXT. Watch for this one: `IP` presets FREF back to **INT**, so an analyzer preset mid-session silently drops it off the house reference. |
+| **5351A** | **No** | The counter switches to an external reference automatically and lights EXT REF, but no command in the manual's list reads that state back. `probe` reports it as unknown and asks for a front-panel check. 4-2 is meaningless if this one is wrong. |
+| **3325B**, **E4438C** | Not yet implemented | Their drivers are M0-15. |
+
+One caveat that no status bit covers: the 8673B manual (paragraph 3-11) warns that an external
+reference below the specified 0.1–1 V rms "may be sufficient to turn off the ɸ UNLOCKED status
+annunciator, giving a false indication of normal operation. In fact, the phase noise of the
+Signal Generator may be degraded." Since the 8673B is the down-conversion LO for 4-9, its
+reference *level* is worth confirming once at the rear panel, not just its lock state.
 
 ## How 4-9 phase noise is done here
 

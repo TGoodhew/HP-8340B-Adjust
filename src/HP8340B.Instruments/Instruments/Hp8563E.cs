@@ -316,19 +316,53 @@ public sealed class Hp8563E : IInstrument
         return hpgl;
     }
 
+    /// <summary>
+    /// Selects the frequency reference — <c>FREF INT</c> or <c>FREF EXT</c>. The analyzer presets
+    /// to INT, so this has to be set deliberately after any <c>IP</c>.
+    /// </summary>
+    public void SetFrequencyReference(bool external) =>
+        _link.Write($"{Hp8563ECommands.Require("FREF")} {(external ? "EXT" : "INT")};");
+
+    /// <summary>
+    /// True if the analyzer reports the external 10 MHz reference selected — <c>FREF?</c>.
+    ///
+    /// <para>Unlike the 5351A, the 8563E does answer this, which matters because the analyzer's
+    /// own reference sets the frequency axis every spur and envelope measurement is judged
+    /// against. Null if the response is neither INT nor EXT rather than guessing.</para>
+    /// </summary>
+    public bool? IsExternalReferenceSelected()
+    {
+        var response = _link.Query($"{Hp8563ECommands.Require("FREF")}?").Trim();
+
+        if (response.StartsWith("EXT", StringComparison.OrdinalIgnoreCase)) return true;
+        if (response.StartsWith("INT", StringComparison.OrdinalIgnoreCase)) return false;
+
+        return null;
+    }
+
     public ProbeResult Probe()
     {
         try
         {
             var identity = Identify();
+            var external = IsExternalReferenceSelected();
+
+            var detail = PadDb != 0 ? $"Pad {PadDb:0.#} dB declared. " : string.Empty;
+
+            detail += external switch
+            {
+                true => "Frequency reference: EXT.",
+                false => "Frequency reference: INT — the analyzer is on its own crystal, not the "
+                         + "Z3805A. Note IP presets FREF back to INT.",
+                null => "FREF? gave no recognisable answer, so the reference is unconfirmed.",
+            };
+
             return new ProbeResult(
                 Role, Model, _link.ResourceName,
                 Responded: !string.IsNullOrWhiteSpace(identity),
                 Identity: identity,
-                // The 8563E's external-reference state is not exposed by ID?; confirming it needs
-                // a separate query that is not yet cited.
-                ExternalReference: null,
-                Detail: PadDb != 0 ? $"Pad {PadDb:0.#} dB declared." : null);
+                ExternalReference: external,
+                Detail: detail);
         }
         catch (Exception ex)
         {

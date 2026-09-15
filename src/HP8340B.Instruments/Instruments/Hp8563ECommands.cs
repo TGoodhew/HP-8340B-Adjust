@@ -21,6 +21,11 @@ public static class Hp8563ECommands
     [
         new("IP",    "INSTR PRESET", CodeStatus.Verified, $"{Guide}.{Bench}"),
         new("ID",    "identify (ID?)", CodeStatus.Verified, $"{Guide}.{Bench}"),
+        new("FREF",  "10 MHz EXT INT", CodeStatus.Verified,
+            $"{Guide}, p. 477 (FREF Frequency Reference). Parameters INT and EXT; query form "
+            + "FREF? returns which is selected. \"An external reference must be 10 MHz (+/-100 Hz) "
+            + "at a minimum amplitude of 0 dBm... When the external mode is selected, an \"X\" "
+            + "appears on the left edge of the display.\" Preset state is Internal."),
 
         // Frequency.
         new("CF",    "CENTER FREQ", CodeStatus.Verified, $"{Guide}.{Bench}"),

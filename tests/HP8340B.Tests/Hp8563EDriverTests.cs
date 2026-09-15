@@ -236,4 +236,44 @@ public class Hp8563EDriverTests
         var ex = Assert.Throws<InvalidOperationException>(() => Hp8563ECommands.Require("ZZZ"));
         Assert.Contains("never fabricate", ex.Message);
     }
+
+    [Fact]
+    public void FrequencyReferenceIsReadableSoProbeCanReportARealAnswer()
+    {
+        // FREF? (guide p. 477). The analyzer's own reference sets the frequency axis that every
+        // spur and envelope measurement is judged against, so this is worth confirming rather
+        // than assuming from the cabinet.
+        var (sa, _, model) = NewSa();
+        Assert.True(sa.IsExternalReferenceSelected());
+        Assert.True(sa.Probe().ExternalReference);
+
+        model.ExternalReference = false;
+        Assert.False(sa.IsExternalReferenceSelected());
+
+        var result = sa.Probe();
+        Assert.False(result.ExternalReference);
+        // IP presets FREF back to INT, which is the way this gets lost in practice.
+        Assert.Contains("IP presets FREF back to INT", result.Detail);
+    }
+
+    [Fact]
+    public void FrequencyReferenceIsSetWithTheGuidesParameters()
+    {
+        var (sa, link, _) = NewSa();
+
+        sa.SetFrequencyReference(external: true);
+        Assert.Equal("FREF EXT;", link.History[^1]);
+
+        sa.SetFrequencyReference(external: false);
+        Assert.Equal("FREF INT;", link.History[^1]);
+    }
+
+    [Fact]
+    public void AnUnrecognisedReferenceAnswerIsReportedAsUnknownNotGuessed()
+    {
+        var link = new SimulatedInstrumentLink("SIM::sa::INSTR", _ => "?????");
+        var sa = new Hp8563E(link);
+
+        Assert.Null(sa.IsExternalReferenceSelected());
+    }
 }

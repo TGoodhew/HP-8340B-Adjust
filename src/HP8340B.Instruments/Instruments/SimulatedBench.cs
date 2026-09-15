@@ -133,6 +133,10 @@ public static class SimulatedBench
         if (config.Model.Contains("11713A", StringComparison.OrdinalIgnoreCase))
             return new Hp11713A(link, config.Role);
 
+        // The 8673B gets its own stateful simulator so read-backs reflect what was set.
+        if (config.Model.Contains("8673B", StringComparison.OrdinalIgnoreCase))
+            return new Hp8673B(new SimulatedSource().CreateLink(resourceName), config.Role);
+
         return IsLegacy(config.Model)
             ? new LegacyGpibInstrument(config.Role, config.Model, link, IsListenOnly(config.Model))
             : new ScpiInstrument(config.Role, config.Model, link);
@@ -188,6 +192,9 @@ public static class InstrumentFactory
 
         if (config.Model.Contains("11713A", StringComparison.OrdinalIgnoreCase))
             return new Hp11713A(link, config.Role);
+
+        if (config.Model.Contains("8673B", StringComparison.OrdinalIgnoreCase))
+            return new Hp8673B(link, config.Role);
 
         return SimulatedBench.IsLegacy(config.Model)
             ? new LegacyGpibInstrument(config.Role, config.Model, link,

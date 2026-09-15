@@ -28,6 +28,9 @@ public sealed class SimulatedAnalyzer
     /// </summary>
     public List<(int OffsetPoints, double Dbm)> Spurs { get; } = new();
 
+    /// <summary>Whether the model answers FREF? with EXT. See <see cref="Respond"/>.</summary>
+    public bool ExternalReference { get; set; } = true;
+
     public SimulatedAnalyzer(int seed = 8563) => _random = new Random(seed);
 
     /// <summary>Builds the link, wiring the responder to this model.</summary>
@@ -45,6 +48,11 @@ public sealed class SimulatedAnalyzer
 
         if (c.StartsWith("ID?", StringComparison.OrdinalIgnoreCase))
             return "HP8563E,SIMULATED";
+
+        // The simulated analyzer is on the house reference, like the real one. Settable so a test
+        // can model the analyzer having been left on its own crystal after an IP.
+        if (c.StartsWith("FREF?", StringComparison.OrdinalIgnoreCase))
+            return ExternalReference ? "EXT" : "INT";
 
         if (c.StartsWith("TRA?", StringComparison.OrdinalIgnoreCase))
             return string.Join(",", BuildTrace().Select(v =>
