@@ -17,7 +17,7 @@ project brief and the manual disagree, the manual wins and the difference is rec
 
 | # | Date | Correction |
 |---|---|---|
-| 1 | 2026-09-15 | **Output power accuracy, band 0.** The brief gave ±0.9 dB for +10 to −9.95 dBm. Table 4-9 (2 of 2) gives **±1.2 dB** for that row; ±0.9 dB is the row above it, +18 to +10 dBm. Bands 1–3 (±1.5 dB) and band 4 (±2.0 dB) at +10 to −9.95 dBm were correct. |
+| 1 | 2026-09-15 | ~~**Output power accuracy, band 0.** The brief gave ±0.9 dB for +10 to −9.95 dBm; Table 4-9 gives ±1.2 dB for that row.~~ **WITHDRAWN — this "correction" was itself wrong.** See entry 11. |
 | 2 | 2026-09-15 | **Extended status byte added.** The brief carried status byte #1 only. Table 4-31 also defines extended status byte #2, and two of its bits change the design: **bit 6 RF unleveled** lets the tool find maximum leveled power over the bus instead of by watching the front-panel lamp, and **bit 3 external frequency reference selected** lets `probe` confirm the DUT is on the Z3805A rather than trusting the rear-panel switch. |
 | 3 | 2026-09-15 | **Cal-constant presets confirmed, not corrected.** The two-column table in 5-14 step 3 scrambles badly under layout-preserving extraction. Re-read in raw order it is unambiguous and matches the brief exactly: CC3–CC8 = 100, CC9–CC12 = 1024, CC50–CC53 = 0, CC71–CC74 = 1024, CC75 = 25, CC76 = 1000, CC77 = −25, CC78 = +25, CC80 = 0, with CC2 = 100 set separately in step 2. |
 | 4 | 2026-09-15 | **A24 pot table confirmed.** 5-14 steps 4–6 list exactly the twelve pots and names the brief gives. |
@@ -27,13 +27,11 @@ project brief and the manual disagree, the manual wins and the difference is rec
 | 8 | 2026-09-15 | **The cal-constant access mechanism is `SHGZ`/`SHMZ`/`SHKZ`/`SHHZ`/`SHEF`** (I/O channel, subchannel, write, read, and restore-access). These map directly onto 5-14 step 2's key sequence and are almost certainly what HP's 08340-10009 "display cal data" utility used. The `SHHZ` read semantics still need confirming on hardware. |
 | 9 | 2026-09-15 | **SYTM auto-tracking is `SHRP`**, confirmed in prose: "[SHIFT] [PEAK] (HP-IB: SHRP) ... aligns all of the YTM tracking calibration constants and requires 5-10 seconds". Note `RP` is a different, much weaker function - it peaks one CW frequency only. |
 | 10 | 2026-09-15 | **Both status bytes are readable with `OS (2b)`**, so extended status byte #2 - RF unleveled, external reference selected - is available over the bus as the design assumed. |
+| 11 | 2026-09-15 | **Correction 1 withdrawn: the original brief was right.** Band 0 output power accuracy at +10 to −9.95 dBm **is ±0.9 dB**. Table 4-9 was read off the rendered page image and the Band 0 column starts at that row — the "+18 to +10 dBm" row above it is a **dash**, because band 0's maximum leveled power is +10 dBm so there is no above-spec range to specify. Text extraction drops the dash and shifts every Band 0 value up one row, which is what produced the false correction. This is the column-drift trap documented in [manual/README.md](manual/README.md), and it caught this project's own transcription. |
+| 12 | 2026-09-15 | **Table 4-9 fully transcribed** from the rendered page images for all four options, both the accuracy and flatness blocks, every level row. Implemented as `PowerAccuracy` with tests. Two edge cases the manual leaves implicit are decided in code: adjacent rows share their top boundary (+10 dBm is in both "+18 to +10" and "+10 to −9.95"), and rows are then gapped by 0.05 dB (−9.95 then −10). |
 
 ### Still to verify
 
-- **Table 4-9 output power accuracy and flatness, rows below +10 dBm.** The row labels drift
-  against the value columns under both extraction modes; the lower-level rows and the
-  Option 001/004/005 blocks are not safely transcribable from the text layer. Read them off the
-  page image before putting them in code. Tracked on the M4-02 issue.
 - **Table 4-8 swept frequency accuracy test frequencies** and **Table 4-2 equipment** both
   extract with OCR damage to the numerals (`2-32` for `2.32`, `24.55'` for `24.55`). Transcribe
   from the page image, not the text layer.
@@ -73,16 +71,34 @@ A11 Bands 1–4 detector · A12 Band 0 splitter/detector.
 
 All figures dBm. Implemented as `MaxLeveledPower` and covered by `MaxLeveledPowerTests`.
 
-### Output power accuracy, standard instrument (Table 4-9, 2 of 2)
+### Output power accuracy and flatness (Table 4-9, pp. 4-25 and 4-26)
 
-| Level | Band 0 | Bands 1–3 | Band 4 |
-|---|---|---|---|
-| +18 to +10 dBm | ±0.9 dB | ±1.8 dB | ±2.3 dB |
-| +10 to −9.95 dBm | ±1.2 dB | ±1.5 dB | ±2.0 dB |
+Transcribed from the rendered page images for all four options; implemented as `PowerAccuracy`.
+Standard instrument shown here, the rest in code.
 
-Lower-level rows and the other options: see "Still to verify" above. Note +18 to +10 dBm is
-above the specified maximum leveled power — the ALC typically operates up to +20 dB to make that
-range usable where the extra power exists (Table 4-9 note 3).
+| Level | Accuracy B0 | B1–3 | B4 | Flatness B0 | B1–3 | B4 |
+|---|---|---|---|---|---|---|
+| +18 to +10 dBm | — | ±1.8 | ±2.3 | — | ±1.2 | ±1.7 |
+| +10 to −9.95 dBm | ±0.9 | ±1.5 | ±2.0 | ±0.6 | ±1.1 | ±1.6 |
+| −10 to −19.95 dBm | ±1.2 | ±2.0 | ±2.5 | ±0.9 | ±1.6 | ±2.1 |
+| −20 to −49.95 dBm | ±1.5 | ±2.3 | ±2.8 | ±1.2 | ±1.9 | ±2.4 |
+| −50 to −79.95 dBm | ±1.8 | ±2.6 | ±3.1 | ±1.4 | ±2.2 | ±2.7 |
+| −80 to −100 dBm | ±2.1 | ±2.9 | ±3.4 | ±1.7 | ±2.5 | ±3.0 |
+
+All figures dB. **The dash in the Band 0 column is real**, not missing data: +18 to +10 dBm is
+above the specified maximum leveled power, and band 0's maximum *is* +10 dBm, so there is no
+above-spec range to specify there. The ALC typically operates up to +20 dB to make that range
+usable in the other bands where the extra power exists (Table 4-9 note 3).
+
+That dash is also what makes this table dangerous to extract: `pdftotext` drops it and shifts
+every Band 0 value up a row. Read the page image.
+
+Options 001 and 005 have only three level rows (+18 to +10, +10 to −10, −10 to −20). Option 004
+breaks at −11.95 / −21.95 / −51.95 / −81.95 rather than the standard instrument's
+−9.95 / −19.95 / −49.95 / −79.95.
+
+Flatness is measured at 0 dBm and is primarily a function of the RF path, so it is essentially
+the same at all ALC levels — but it does change when the step attenuator changes range.
 
 ### Spurious, at 0 dBm (dBc)
 
