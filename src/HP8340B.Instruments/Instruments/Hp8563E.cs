@@ -362,7 +362,8 @@ public sealed class Hp8563E : IInstrument
                 Responded: !string.IsNullOrWhiteSpace(identity),
                 Identity: identity,
                 ExternalReference: external,
-                Detail: detail);
+                Detail: detail,
+                ReferenceApplies: true);
         }
         catch (Exception ex)
         {

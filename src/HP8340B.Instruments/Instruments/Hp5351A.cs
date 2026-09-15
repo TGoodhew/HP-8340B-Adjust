@@ -144,7 +144,8 @@ public sealed class Hp5351A : IInstrument
                 // if the counter is not on the Z3805A, so this must be checked at the front panel.
                 ExternalReference: null,
                 Detail: "EXT REF is automatic and has no documented query — confirm the EXT REF "
-                        + "annunciator is lit at the front panel before trusting 4-2.");
+                        + "annunciator is lit at the front panel before trusting 4-2.",
+                ReferenceApplies: true);
         }
         catch (Exception ex)
         {

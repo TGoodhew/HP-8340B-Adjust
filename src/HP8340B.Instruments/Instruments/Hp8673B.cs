@@ -430,7 +430,8 @@ public sealed class Hp8673B : IInstrument
                 Identity: $"status byte 0x{(byte)status:X2} (pre-488.2: no *IDN?, and no "
                           + "identification code in Table 3-6)",
                 ExternalReference: reference.LockedToExternalReference,
-                Detail: detail);
+                Detail: detail,
+                ReferenceApplies: true);
         }
         catch (Exception ex)
         {

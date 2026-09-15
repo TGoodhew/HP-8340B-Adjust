@@ -38,6 +38,14 @@ public sealed class InstrumentConfig
     /// </summary>
     public bool Probeable { get; set; } = true;
 
+    /// <summary>
+    /// True for kit that does not live on this bench. Borrowed items go back, and the failure
+    /// mode is a <see cref="Present"/> flag left true after the instrument has gone: `probe` then
+    /// reports a plain "no response" that looks like a fault. This makes it say what actually
+    /// happened instead.
+    /// </summary>
+    public bool Borrowed { get; set; }
+
     /// <summary>True when the address has not been filled in yet.</summary>
     [JsonIgnore]
     public bool AddressUnknown =>

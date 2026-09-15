@@ -60,12 +60,12 @@
     // 26.5 GHz sensor is present, band-4 power measurements upgrade from Relative to Spec.
     // No longer needed for power: the resident 8481A + 8485A on the 437B already cover
     // 10 MHz - 26.5 GHz. Kept present:false as an optional independent second opinion only.
-    { "role": "usb-power-sensor",   "model": "Keysight U8485A", "address": "TBD", "present": false,
+    { "role": "usb-power-sensor",   "model": "Keysight U8485A", "address": "TBD", "present": false, "borrowed": true,
       "note": "Borrowed, and now OPTIONAL — the resident 8485A already makes band 4 Spec. Useful only as an independent cross-check." },
 
     // Still genuinely needed from the borrow list: a 26.5 GHz splitter for 4-6 in band 4, and
     // 3.5 mm pads rated to 26.5 GHz.
-    { "role": "splitter-26g",       "model": "HP 11667B", "address": "n/a (passive)", "present": false,
+    { "role": "splitter-26g",       "model": "HP 11667B", "address": "n/a (passive)", "present": false, "borrowed": true,
       "probeable": false,
       "note": "Borrowed. DC-26.5 GHz. Needed for 4-6 external leveling in band 4; the resident 11667A stops at 18 GHz." }
   ]

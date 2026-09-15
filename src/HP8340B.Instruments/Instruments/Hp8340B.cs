@@ -334,7 +334,8 @@ public sealed class Hp8340B : IInstrument
                     ? $"status #1 0x{(byte)primary:X2}, #2 0x{(byte)extended:X2}"
                     : identity,
                 ExternalReference: extended.HasFlag(StatusByte2.ExternalFreqRefSelected),
-                Detail: detail);
+                Detail: detail,
+                ReferenceApplies: true);
         }
         catch (Exception ex)
         {
