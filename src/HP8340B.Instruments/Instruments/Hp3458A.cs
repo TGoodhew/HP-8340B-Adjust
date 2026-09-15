@@ -18,13 +18,35 @@ namespace HP8340B.Instruments;
 /// range the meter happened to pick is a settle time nobody can predict, and 5-14 step 7 wants
 /// 5 mV read to ±0.5 mV.</para>
 /// </summary>
-public sealed class Hp3458A : IInstrument
+public sealed class Hp3458A : IVoltmeter
 {
     private readonly IInstrumentLink _link;
 
     public string Role { get; }
     public string Model => "HP 3458A";
     public IInstrumentLink Link => _link;
+
+    /// <summary>
+    /// 1-year DC voltage specification, from Appendix A of the User's Guide. The guide states it
+    /// in ppm rather than percent: the 100 mV range is "9 + 3" ppm, which is 0.0009% of reading
+    /// plus 0.0003% of range. Ranges carry 20% overrange, so full scale is 120 mV, 1.2 V, 12 V.
+    /// </summary>
+    public static readonly VoltmeterAccuracy Specification = new(
+        "HP 3458A",
+        [
+            new VoltmeterRange(0.12, 9e-4, 3e-4),
+            new VoltmeterRange(1.2, 8e-4, 0.3e-4),
+            new VoltmeterRange(12.0, 8e-4, 0.05e-4),
+            new VoltmeterRange(120.0, 10e-4, 0.3e-4),
+            new VoltmeterRange(1050.0, 10e-4, 0.1e-4),
+        ],
+        DcCommonModeRejectionDb: 140,
+        MaxNplc: 1000,
+        Source: "3458A User's Guide, Appendix A, DC Voltage: 1 Year accuracy in "
+                + "(ppm of Reading + ppm of Range). DC ECMR 140 dB from the Noise Rejection "
+                + "table.");
+
+    public VoltmeterAccuracy Accuracy => Specification;
 
     public Hp3458A(IInstrumentLink link, string role = "dmm")
     {

@@ -30,6 +30,15 @@ public static class SimulatedBench
                 && c.StartsWith("ID?", StringComparison.OrdinalIgnoreCase))
                 return "HP3458A";
 
+            // The 34401A and DM3058 are SCPI: READ? and :MEASure both return a reading.
+            if (model.Contains("34401A", StringComparison.OrdinalIgnoreCase)
+                || model.Contains("DM3058", StringComparison.OrdinalIgnoreCase))
+            {
+                if (c.StartsWith("READ?", StringComparison.OrdinalIgnoreCase)
+                    || c.StartsWith(":MEASure", StringComparison.OrdinalIgnoreCase))
+                    return "5.0000E-3";
+            }
+
             // The 5351A and the 3458A are talkers: a bare read returns the current measurement,
             // so the responder answers whatever was last written rather than only queries.
             if (model.Contains("5351A", StringComparison.OrdinalIgnoreCase))
@@ -126,6 +135,13 @@ public static class SimulatedBench
         if (config.Model.Contains("3458A", StringComparison.OrdinalIgnoreCase))
             return new Hp3458A(link, config.Role);
 
+        // Either of the other two meters can fill the DMM role -- see IVoltmeter.
+        if (config.Model.Contains("34401A", StringComparison.OrdinalIgnoreCase))
+            return new Hp34401A(link, config.Role);
+
+        if (config.Model.Contains("DM3058", StringComparison.OrdinalIgnoreCase))
+            return new RigolDm3058(link, config.Role);
+
         if (config.Model.Contains("DS1104Z", StringComparison.OrdinalIgnoreCase))
             return new RigolDs1104Z(link, config.Role);
 
@@ -185,6 +201,12 @@ public static class InstrumentFactory
 
         if (config.Model.Contains("3458A", StringComparison.OrdinalIgnoreCase))
             return new Hp3458A(link, config.Role);
+
+        if (config.Model.Contains("34401A", StringComparison.OrdinalIgnoreCase))
+            return new Hp34401A(link, config.Role);
+
+        if (config.Model.Contains("DM3058", StringComparison.OrdinalIgnoreCase))
+            return new RigolDm3058(link, config.Role);
 
         if (config.Model.Contains("DS1104Z", StringComparison.OrdinalIgnoreCase))
             return new RigolDs1104Z(link, config.Role);

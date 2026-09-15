@@ -14,7 +14,7 @@ what is here.
 | Spectrum analyzer 0.01–22 GHz (8566B) + K281C HPF for 22–26.5 | **HP 8563E**, 9 kHz – 26.5 GHz, GPIB 18 | **Better.** Covers every band directly, no filter. Replaces the LO + mixer squegging test: look at the carrier ±300 MHz, RBW 300 kHz / VBW 100 kHz, and use zero span for time-domain relaxation oscillation. Also the swept-power envelope viewer (max hold while the DUT sweeps). Has video out and ext trigger. |
 | Frequency counter to DUT max (5343A) | **HP 5351A**, 26.5 GHz, GPIB 14 | Covered. Lock DUT and counter to the same 10 MHz. |
 | 10 MHz frequency standard (5061A) | **Z3805A GPSDO** (plus a BG7TBL GPSDO) | Covered. Distributed through a Symmetricom distribution amplifier to the 8340B ext ref, 8563E, 5351A, 8673B, 3325B and E4438C. Only some of these can be *confirmed* over the bus — see below. |
-| DVM (3456A) | **HP 3458A** | Covered, overkill. |
+| DVM (3456A) | **HP 3458A**, or a **34401A** or **DM3058** — the role is pluggable | Covered. The 3458A is not required: see "Which multimeter" below. |
 | Oscilloscope, 50 Ω input, A-vs-B | **Rigol DS1104Z** (LAN) | XY mode covered. Input is 1 MΩ only, so a 50 Ω feedthrough (HP 10100C, itself in Table 4-2) goes in front of the detector. Trace readout over SCPI drives the live XY view. |
 | Crystal detector, negative, to 26.5 GHz (8473C) | **HP 8473C** (3.5 mm, 26.5 GHz), **8470B** (N, 18 GHz), **8472B** (SMA, 18 GHz) | Covered. The 8473C is the manual's own choice. **No positive-polarity detector** — only 5-15 step 26 wants one, and that step is skipped. |
 | Power meter + 8481A / 8485A sensors (436A) | **HP 437B + HP 8481A + HP 8485A** — exactly the sensors Table 4-2 asks for; plus **HP 8902A + 11792A** (50 MHz – 18 GHz, HP-IB) and **HP 432A + 478A** thermistor (10 MHz – 10 GHz) | **Fully covered across the entire instrument, and better than the manual's 436A.** The 8481A (10 MHz – 18 GHz) and 8485A (to 26.5 GHz) on the HP-IB 437B span the whole 10 MHz – 26.5 GHz range as `Spec`, automatable. The 11792A is a second automatable path below 18 GHz and the thermistor a third, independent one below 10 GHz. |
@@ -58,6 +58,54 @@ reference below the specified 0.1–1 V rms "may be sufficient to turn off the �
 annunciator, giving a false indication of normal operation. In fact, the phase noise of the
 Signal Generator may be degraded." Since the 8673B is the down-conversion LO for 4-9, its
 reference *level* is worth confirming once at the rear panel, not just its lock state.
+
+### Which multimeter — the 3458A is not required
+
+The DMM does three jobs here, and the 3458A is comfortably overqualified for all of them. A
+**34401A** or a **DM3058** will do, and `IVoltmeter` makes the swap a config change.
+
+The demanding job is the 432A's DC substitution measurement, which reads `V_COMP - V_RF` — a
+difference that shrinks fast as power falls, riding on about 3 V of common mode:
+
+| Power at the mount | V1 − V0 | 3458A | 34401A | DM3058 | **432A's own spec** |
+|---|---|---|---|---|---|
+| +10 dBm | 2.0 V | 0.001% | 0.006% | 0.018% | **0.21%** |
+| +7 dBm (rule 5 ceiling) | 766 mV | 0.001% | 0.005% | 0.023% | **0.21%** |
+| 0 dBm | 136 mV | 0.001% | 0.009% | 0.023% | **0.25%** |
+| −10 dBm | 13.4 mV | 0.006% | 0.033% | 0.097% | **0.70%** |
+| −20 dBm | 1.33 mV | 0.050% | 0.290% | 0.840% | **5.20%** |
+| −30 dBm | 133 µV | 0.496% | 2.86% | 8.27% | **50.2%** |
+
+**The last column is the point.** The 432A's precision specification is ±0.2% of reading
+**+ 0.5 µW** (paragraph 3-29), and that additive term grows as power falls faster than any meter's
+floor does. The power meter is the limit at every level, by a wide margin: even the DM3058 never
+contributes more than about a sixth of the 432A's own figure, and at +7 dBm it contributes a tenth.
+
+Two supporting points:
+
+- The manual's own named reference instrument is a **3440A with a 3443A plug-in** — a five-digit
+  DVM from the 1960s — and it asks only for "a digital voltmeter with equivalent accuracy". Both
+  the 34401A (6½ digits) and the DM3058 (5½) clear that bar.
+- **Common-mode rejection** matters more than usual here, because the measurement is a few
+  millivolts on 3 V of common mode. The 34401A gives **140 dB, the same figure the 3458A quotes**;
+  the DM3058 gives 120 dB, which at the smallest differential this bench reads is worth about
+  0.2% — still inside the 432A's own budget.
+
+For the other two jobs there is nothing to discuss: 5-14 step 7 wants 5.0 mV to ±0.5 mV, and the
+margin is 709× (3458A), 123× (34401A) or 43× (DM3058).
+
+So the choice is driven by convenience, not accuracy:
+
+- **34401A** — the natural substitute. GPIB, plain SCPI, 140 dB CMRR, and 100 PLC of integration.
+- **DM3058** — fine for everything here. Check which variant: the **DM3058E has no GPIB**, only
+  USB and RS-232, so it lands on a different interface from the rest of the bench. Its accuracy
+  figures are quoted at the "slow" rate only, and the driver always selects it.
+- **3458A** — no measurable benefit in this project. Nothing here exercises its 8½ digits, its
+  100 nV sensitivity or its digitising. Free it for other work if it is wanted elsewhere.
+
+`Hp432A.MeterIsAdequate` computes all of this from each meter's own published specification, so
+swapping meters re-answers the question automatically and a reading records which meter took it
+and what that cost.
 
 ## How 4-9 phase noise is done here
 

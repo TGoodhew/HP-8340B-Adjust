@@ -24,7 +24,11 @@
       "address": "TCPIP0::192.168.1.145::inst0::INSTR",
       "note": "Confirm the LAN address has not moved." },
 
-    { "role": "dmm",                "model": "HP 3458A",  "address": "TBD" },
+    // Any of the 3458A, 34401A or DM3058 can fill this role -- see "Which multimeter" in
+    // docs/GEAR-MAP.md. The 432A is the accuracy limit, not the meter, at every level this
+    // bench measures. Change the model here and the drivers and uncertainty budget follow.
+    { "role": "dmm",                "model": "HP 3458A",  "address": "TBD",
+      "note": "Pluggable: HP 3458A, HP 34401A or Rigol DM3058. A DM3058E has no GPIB." },
     { "role": "measuring-receiver", "model": "HP 8902A",  "address": "TBD", "timeoutMs": 20000,
       "note": "With the 11792A sensor module (50 MHz-18 GHz) — the primary absolute-power path." },
     { "role": "lo-source",          "model": "HP 8673B",  "address": "TBD",

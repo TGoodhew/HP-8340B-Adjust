@@ -288,6 +288,16 @@ public enum ThermistorMode
 /// <param name="CorrectionFraction">The factor actually applied.</param>
 /// <param name="Traceability">How far the reading can be trusted.</param>
 /// <param name="Note">Anything qualifying the reading.</param>
+/// <param name="Voltmeter">Which meter took the bridge voltages, for the session record.</param>
+/// <param name="MeterUncertaintyPercent">
+/// What the voltmeter contributed to this reading, as a percentage of it. Recorded because three
+/// different meters can fill the DMM role on this bench and the answer differs between them —
+/// see <see cref="Hp432A.MeterIsAdequate"/>.
+/// </param>
+/// <param name="MeterShareOfBudget">
+/// The meter's contribution as a fraction of the 432A's own specification at this power. Below
+/// 1.0 the meter is not the limit; above it, the meter is.
+/// </param>
 public sealed record ThermistorReading(
     double Watts,
     ThermistorMode Mode,
@@ -295,7 +305,10 @@ public sealed record ThermistorReading(
     ThermistorCorrection CorrectionUsed,
     double CorrectionFraction,
     TraceabilityClass Traceability,
-    string? Note = null)
+    string? Note = null,
+    string? Voltmeter = null,
+    double MeterUncertaintyPercent = 0,
+    double MeterShareOfBudget = 0)
 {
     /// <summary>The same reading in dBm. Zero or negative power has no dBm value.</summary>
     public double Dbm => Watts <= 0 ? double.NegativeInfinity : 10.0 * Math.Log10(Watts * 1000.0);
@@ -320,7 +333,16 @@ public sealed record ThermistorReading(
 /// </summary>
 public sealed class Hp432A
 {
-    private readonly Hp3458A _dmm;
+    /// <summary>
+    /// The 432A's own precision-measurement specification, paragraph 3-29: "measurement error can
+    /// be reduced to +/-0.2% of reading +0.5 uW". Proportional term.
+    /// </summary>
+    public const double PrecisionPercentOfReading = 0.2;
+
+    /// <summary>The additive half of the same specification. This dominates at low power.</summary>
+    public const double PrecisionAdditiveWatts = 0.5e-6;
+
+    private readonly IVoltmeter _dmm;
     private readonly IThermistorConnectionSelector _selector;
 
     /// <summary>The mount, and the calibration data off its label.</summary>
@@ -370,7 +392,10 @@ public sealed class Hp432A
     /// <summary>The zero-offset voltage V0, and when it was taken. Null until zeroed.</summary>
     public (double Volts, DateTime At)? Zero { get; private set; }
 
-    public Hp432A(Hp3458A dmm, IThermistorConnectionSelector selector, ThermistorMount? mount = null)
+    /// <summary>The meter reading the 432A's terminals — see <see cref="IVoltmeter"/>.</summary>
+    public IVoltmeter Voltmeter => _dmm;
+
+    public Hp432A(IVoltmeter dmm, IThermistorConnectionSelector selector, ThermistorMount? mount = null)
     {
         _dmm = dmm ?? throw new ArgumentNullException(nameof(dmm));
         _selector = selector ?? throw new ArgumentNullException(nameof(selector));
@@ -446,10 +471,78 @@ public sealed class Hp432A
         // The pad is added back in power terms, so the reported figure is the level at the DUT.
         var incident = substituted / correction * Math.Pow(10, Mount.PadDb / 10.0);
 
+        var (meterPercent, share) = MeterIsAdequate(incident, vComp);
+
+        var notes = new List<string>();
+        if (Mount.PadDb != 0) notes.Add($"Characterised pad {Mount.PadDb:0.##} dB added back.");
+
+        // Only worth saying when the meter is actually a material part of the budget. Below a
+        // tenth it is noise about noise.
+        if (share > 0.1)
+            notes.Add($"{_dmm.Model} contributes {meterPercent:0.###}% against the 432A's own "
+                      + $"{MeterIndependentUncertaintyPercent(incident):0.###}% here "
+                      + $"({share:0.##} of the budget).");
+
         return new ThermistorReading(
             incident, ThermistorMode.Substitution, hz, Correction, correction,
-            TraceabilityClass.Spec,
-            Mount.PadDb != 0 ? $"Characterised pad {Mount.PadDb:0.##} dB added back." : null);
+            // The meter only costs the reading its Spec class once it is contributing more than
+            // the 432A itself does. Short of that the power meter is the limit and swapping
+            // voltmeters would change nothing.
+            share > 1.0 ? TraceabilityClass.Typical : TraceabilityClass.Spec,
+            notes.Count > 0 ? string.Join(" ", notes) : null,
+            _dmm.Model, meterPercent, share);
+    }
+
+    /// <summary>
+    /// The 432A's own uncertainty at <paramref name="watts"/>, as a percentage of reading:
+    /// 0.2% of reading + 0.5 uW (paragraph 3-29).
+    ///
+    /// <para>The additive term is what makes this interesting. At +7 dBm it is worth 0.01% and is
+    /// irrelevant; at -30 dBm it is worth 50% and swamps everything else, the meter included.</para>
+    /// </summary>
+    public static double MeterIndependentUncertaintyPercent(double watts)
+    {
+        if (watts <= 0)
+            throw new ArgumentOutOfRangeException(nameof(watts), watts, "Power must be positive.");
+
+        return PrecisionPercentOfReading + PrecisionAdditiveWatts / watts * 100.0;
+    }
+
+    /// <summary>
+    /// Whether the meter in the rack is good enough to measure <paramref name="watts"/> through
+    /// this path, and by how much.
+    ///
+    /// <para><b>Why this is computed rather than asserted.</b> Three meters can fill the DMM role
+    /// here — the 3458A, a 34401A and a DM3058 — and they differ by a factor of thirty in their
+    /// low-range floor. Whether that matters depends entirely on the power being measured, because
+    /// the differential the substitution method reads shrinks fast: about 766 mV at +7 dBm but
+    /// only 1.3 mV at -20 dBm. Rather than carry a rule of thumb about which meter is "good
+    /// enough", the measurement works it out from the meter's own published specification.</para>
+    ///
+    /// <para>The comparison is against the 432A's own figure, because that is the real limit. A
+    /// meter contributing a tenth of what the power meter itself contributes is not worth
+    /// worrying about.</para>
+    /// </summary>
+    /// <param name="watts">Incident power being measured.</param>
+    /// <param name="vComp">Compensation-bridge voltage, which is also the common mode.</param>
+    /// <returns>
+    /// The meter's contribution as a percentage of reading, and its share of the 432A's own
+    /// budget. A share below 1 means the power meter is the limit, not the voltmeter.
+    /// </returns>
+    public (double MeterPercent, double ShareOfBudget) MeterIsAdequate(double watts, double vComp = 3.0)
+    {
+        var substituted = watts * (Mount.Calibration.Count > 0 ? 0.97 : 1.0);
+        var v1 = V1ForSubstitutedWatts(substituted, vComp, 0, ThermistorMount.ResistanceOhms);
+
+        // A fractional error in the differential is very nearly a fractional error in the power:
+        // for small d the bracket is dominated by the 2*V_COMP*d term, which is linear in d.
+        var differential = v1;
+        var uncertainty = _dmm.Accuracy.UncertaintyVolts(differential, commonModeVolts: vComp);
+
+        var meterPercent = uncertainty / differential * 100.0;
+        var own = MeterIndependentUncertaintyPercent(watts);
+
+        return (meterPercent, meterPercent / own);
     }
 
     /// <summary>
@@ -530,7 +623,8 @@ public sealed class Hp432A
                 : "UNCONFIRMED recorder-output scaling: 1.000 V = full scale is taken from the "
                   + "manual and has never been checked on this meter. Run ConfirmMeterScaling "
                   + "against a substitution reading at the same power before treating this as Spec. "
-                  + $"Range {Range.Label}.");
+                  + $"Range {Range.Label}.",
+            _dmm.Model);
     }
 
     /// <summary>
