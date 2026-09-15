@@ -22,6 +22,14 @@ public sealed class InstrumentConfig
     /// <summary>Free-text note carried into the session record.</summary>
     public string? Note { get; set; }
 
+    /// <summary>
+    /// False for passive kit that is not on the bus at all — power sensors that plug into a
+    /// meter, splitters, pads. These are listed so the session records what produced a reading
+    /// and so drivers can enforce the right frequency range and power limit, but `probe` reports
+    /// them rather than trying to open a VISA session to them.
+    /// </summary>
+    public bool Probeable { get; set; } = true;
+
     /// <summary>True when the address has not been filled in yet.</summary>
     [JsonIgnore]
     public bool AddressUnknown =>

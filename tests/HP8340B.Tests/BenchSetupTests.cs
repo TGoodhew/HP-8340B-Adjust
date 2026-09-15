@@ -96,19 +96,47 @@ public class BenchSetupTests
     {
         var bench = BenchConfig.Load(Path.Combine(AppContext.BaseDirectory, "bench.json"));
         Assert.False(bench.ByRole("usb-power-sensor")!.Present);
-        Assert.False(bench.ByRole("borrowed-sensor")!.Present);
+        Assert.False(bench.ByRole("splitter-26g")!.Present);
     }
 
     [Fact]
     public void The437BIsAStandingInstrumentNotBorrowedKit()
     {
         // It reads the 848x sensors, which the 432A cannot, and it is on HP-IB. That makes it the
-        // second absolute-power path rather than something that has to arrive with a borrowed
-        // sensor. Its address is still TBD (D-04).
+        // absolute-power path rather than something that has to arrive with a borrowed sensor.
         var meter = BenchConfig.Load(Path.Combine(AppContext.BaseDirectory, "bench.json"))
             .ByRole("power-meter")!;
 
         Assert.Equal("HP 437B", meter.Model);
         Assert.True(meter.Present);
+        Assert.True(meter.Probeable);
+    }
+
+    [Fact]
+    public void BothPowerSensorsArePresentAndSpanTheWholeInstrument()
+    {
+        // 8481A 10 MHz - 18 GHz and 8485A to 26.5 GHz, both on the 437B. Together they cover the
+        // 8340B's entire 10 MHz - 26.5 GHz range, so band-4 absolute power is Spec with nothing
+        // borrowed. Sensor cal-factor ranges: 8481A manual Table 1-3.
+        var bench = BenchConfig.Load(Path.Combine(AppContext.BaseDirectory, "bench.json"));
+
+        var low = bench.ByRole("power-sensor-low")!;
+        var high = bench.ByRole("power-sensor-high")!;
+
+        Assert.Equal("HP 8481A", low.Model);
+        Assert.Equal("HP 8485A", high.Model);
+        Assert.True(low.Present);
+        Assert.True(high.Present);
+    }
+
+    [Fact]
+    public void PassiveKitIsNotProbed()
+    {
+        // Sensors plug into the meter and splitters are passive: neither is on the bus, so probe
+        // must report them rather than trying to open a VISA session to them.
+        var bench = BenchConfig.Load(Path.Combine(AppContext.BaseDirectory, "bench.json"));
+
+        foreach (var role in new[] { "power-sensor-low", "power-sensor-high", "splitter-26g" })
+            Assert.False(bench.ByRole(role)!.Probeable, $"'{role}' should not be probed.");
     }
 }

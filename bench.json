@@ -38,16 +38,33 @@
     { "role": "switch-matrix",      "model": "Agilent 3499A",  "address": "TBD",
       "note": "2x 33311C (26.5 GHz), several 33311B (18 GHz), 44472A dual 1:4 VHF. Slot map TBD — `probe` queries module ID per slot." },
 
-    // Standing second absolute-power path. Reads the 848x sensors, which the 432A cannot, and
-    // is on HP-IB so it automates. Sensor models still TBD — see the D-04 decision issue.
+    // Standing absolute-power path, and the one that covers the whole instrument. The 437B is on
+    // HP-IB, so both sensors below are automatable. Together they span 10 MHz - 26.5 GHz, which
+    // is the entire range of the 8340B: nothing needs borrowing for power.
     { "role": "power-meter",        "model": "HP 437B",  "address": "TBD",
-      "note": "Reads 8481A/B/H, 8482A/B/H, 8483A, 8485A, R/Q/W8486A and the 8484A/848xD low-power sensors. With a borrowed 8485A this makes band 4 Spec." },
+      "note": "Reads both sensors below. Zero and calibrate against its own 50 MHz 1 mW reference." },
+
+    // Sensors are not separately addressable — they plug into the 437B. Listed so the driver can
+    // enforce the right frequency range and power limit for whichever is connected, and so the
+    // session records which one produced a reading.
+    { "role": "power-sensor-low",   "model": "HP 8481A", "address": "n/a (reads via the 437B)",
+      "probeable": false,
+      "note": "10 MHz - 18 GHz, -30 to +20 dBm, Type-N. The only sensor covering 10-50 MHz apart from the 478A thermistor." },
+    { "role": "power-sensor-high",  "model": "HP 8485A", "address": "n/a (reads via the 437B)",
+      "probeable": false,
+      "note": "Cal-factor data 30 MHz - 26.5 GHz, -30 to +20 dBm, 3.5 mm (m). This is what makes band 4 Spec. Option 033 would reach 33 GHz — confirm which variant this is." },
 
     // Borrowed kit. present=false until it is physically on the bench; when a borrowed
     // 26.5 GHz sensor is present, band-4 power measurements upgrade from Relative to Spec.
+    // No longer needed for power: the resident 8481A + 8485A on the 437B already cover
+    // 10 MHz - 26.5 GHz. Kept present:false as an optional independent second opinion only.
     { "role": "usb-power-sensor",   "model": "Keysight U8485A", "address": "TBD", "present": false,
-      "note": "Borrowed. DC/10 MHz-33 GHz. Upgrades 4-5 and 5-14 step 30 in band 4 to Spec." },
-    { "role": "borrowed-sensor",    "model": "Keysight 8485A", "address": "n/a (reads via the 437B)", "present": false,
-      "note": "Borrowed. 50 MHz-26.5 GHz, -30 to +20 dBm, 3.5 mm. Reads on the 437B, so unlike the U8485A it needs nothing else to arrive with it." }
+      "note": "Borrowed, and now OPTIONAL — the resident 8485A already makes band 4 Spec. Useful only as an independent cross-check." },
+
+    // Still genuinely needed from the borrow list: a 26.5 GHz splitter for 4-6 in band 4, and
+    // 3.5 mm pads rated to 26.5 GHz.
+    { "role": "splitter-26g",       "model": "HP 11667B", "address": "n/a (passive)", "present": false,
+      "probeable": false,
+      "note": "Borrowed. DC-26.5 GHz. Needed for 4-6 external leveling in band 4; the resident 11667A stops at 18 GHz." }
   ]
 }

@@ -17,7 +17,7 @@ what is here.
 | DVM (3456A) | **HP 3458A** | Covered, overkill. |
 | Oscilloscope, 50 Ω input, A-vs-B | **Rigol DS1104Z** (LAN) | XY mode covered. Input is 1 MΩ only, so a 50 Ω feedthrough (HP 10100C, itself in Table 4-2) goes in front of the detector. Trace readout over SCPI drives the live XY view. |
 | Crystal detector, negative, to 26.5 GHz (8473C) | **HP 8473C** (3.5 mm, 26.5 GHz), **8470B** (N, 18 GHz), **8472B** (SMA, 18 GHz) | Covered. The 8473C is the manual's own choice. **No positive-polarity detector** — only 5-15 step 26 wants one, and that step is skipped. |
-| Power meter + 8481A / 8485A sensors (436A) | **HP 437B** + several **8480-series** sensors to 18 GHz (models TBD); **HP 8902A + 11792A** (50 MHz – 18 GHz, HP-IB); **HP 432A + 478A** thermistor (10 MHz – 10 GHz) | **Fully covered, and better than the manual's 436A.** Two independent automatable paths to 18 GHz, plus the thermistor as a third. Above 18 GHz is `Relative` until a 26.5 GHz sensor arrives — but the 437B reads an 8485A, so that upgrade is now one borrowed sensor away. |
+| Power meter + 8481A / 8485A sensors (436A) | **HP 437B + HP 8481A + HP 8485A** — exactly the sensors Table 4-2 asks for; plus **HP 8902A + 11792A** (50 MHz – 18 GHz, HP-IB) and **HP 432A + 478A** thermistor (10 MHz – 10 GHz) | **Fully covered across the entire instrument, and better than the manual's 436A.** The 8481A (10 MHz – 18 GHz) and 8485A (to 26.5 GHz) on the HP-IB 437B span the whole 10 MHz – 26.5 GHz range as `Spec`, automatable. The 11792A is a second automatable path below 18 GHz and the thermistor a third, independent one below 10 GHz. |
 | Second sweeper as LO + mixer 0955-0307 | **HP 8673B** (2–26 GHz), **Agilent E4438C** (≤ 6 GHz, very low phase noise) | Not needed for squegging (8563E direct). Needed for the 4-9 quadrature method and 4-16 FM flatness, where the missing part is a broadband mixer. |
 | Modulation analyzer (8901A/8902A) | **HP 8902A** | Covered. |
 | Function generator (3325A) | **HP 3325B**, GPIB 10 | Covered. |
@@ -81,16 +81,19 @@ tool here.
 
 | Gap | Blocks | Plan |
 |---|---|---|
-| **Absolute power 18–26.5 GHz** | 5-14 band-4 min-power confirmation (step 30); 4-5 in band 4 and 18–20 GHz of band 3; 4-6 in band 4 | **Now just a sensor.** The 437B is already here and reads an 8485A (50 MHz – 26.5 GHz) or an 8487A, so borrowing one sensor closes this. An HP K486A waveguide thermistor mount (18–26.5 GHz, WR-42) on the existing 432A is the buy-it alternative. Until then: `Relative` via 8902A/11793A, `Typical` via the 8563E. |
 | **Broadband DBM, 2–26.5 GHz** | 4-16 FM flatness at 50 kHz–10 MHz rates; the manual's exact 4-12/4-13 down-conversion; optionally PN.EXE external-conversion mode | Band 0/1 up to the E4438C limit: any cheap DBM with the E4438C as LO. For 4-12/4-13 the 8473C into a 50 Ω-terminated DS1104Z channel is the alternative envelope method. Low priority. |
 | **Positive-polarity detector** | 5-15 step 26 only | Skip the step. |
 | **3.5 mm cable and 10/20 dB pads to 26.5 GHz** | Band-4 work in front of anything but the 8563E | On the borrow list. |
 
-**Closed by what is on hand:** pulse generator (8116A, DG1032Z spare) · 300–400 MHz source for
-5-5 (E4438C) · low-voltage PSU (8116A/DG1032Z DC + 3458A) · splitter to 18 GHz (11667A) ·
-absolute power to 18 GHz · phase noise at 30 Hz–100 kHz offsets by the direct method · a full set
-of 8340B PC-board extenders · 50 Ω feedthroughs · SMB service cables · 10 MHz distribution ·
-adapters.
+**Closed by what is on hand:** **absolute power across the entire 10 MHz – 26.5 GHz range
+(437B + 8481A + 8485A)** · pulse generator (8116A, DG1032Z spare) · 300–400 MHz source for 5-5
+(E4438C) · low-voltage PSU (8116A/DG1032Z DC + 3458A) · splitter to 18 GHz (11667A) · phase noise
+at 30 Hz–100 kHz offsets by the direct method · a full set of 8340B PC-board extenders · 50 Ω
+feedthroughs · SMB service cables · 10 MHz distribution · adapters.
+
+The absolute-power gap above 18 GHz was the project's top-priority gap. It is closed: the 437B is
+on HP-IB and the two sensors between them span the whole instrument, so 4-5 in band 4, the
+18–20 GHz stretch of band 3, and 5-14 step 30 are all `Spec` with nothing borrowed.
 
 ## Borrowed kit
 
@@ -98,13 +101,16 @@ Every item is optional and driven from config. When a flag is on, the affected m
 upgrade their traceability class automatically and the session records the borrowed serial
 numbers.
 
-| Part | Upgrades |
-|---|---|
-| **U8485A** USB thermocouple sensor, DC/10 MHz – 33 GHz | Band 4 and 18–20 GHz absolute power → 4-5 and 5-14 step 30 become `Spec`; a second opinion everywhere else |
-| **8485A** (50 MHz – 26.5 GHz, −30 to +20 dBm) | The same upgrade, and it now needs **nothing to come with it** — the 437B on this bench reads it. This is the cheapest route to band-4 `Spec` and should be the first thing borrowed. |
-| **11667B** splitter, DC–26.5 GHz | 4-6 external leveling in band 4 |
-| **8493C** Opt 010 / 020 pads, DC–26.5 GHz | Pads for band 4 in front of sensors, counter and 8902A |
-| **11500-series** 3.5 mm cable | Band-4 connections |
+**Power sensors are no longer on this list.** The resident 8481A and 8485A on the 437B already
+cover 10 MHz – 26.5 GHz as `Spec`, so nothing needs borrowing to complete the power measurements.
+What remains is passive 26.5 GHz plumbing.
+
+| Part | Upgrades | Still needed? |
+|---|---|---|
+| **11667B** splitter, DC–26.5 GHz | 4-6 external leveling in band 4 — the resident 11667A stops at 18 GHz | **Yes.** The one real remaining gap. |
+| **8493C** Opt 010 / 020 pads, DC–26.5 GHz | Pads for band 4 in front of the sensor, counter and 8902A | **Yes**, unless a 26.5 GHz pad is bought. |
+| **11500-series** 3.5 mm cable | Band-4 connections | **Yes.** |
+| **U8485A** USB thermocouple sensor, DC/10 MHz – 33 GHz | Was the route to band-4 `Spec` | **No longer needed** — the resident 8485A does this. Useful only as an independent cross-check, and it would need a USBTMC driver written from scratch. |
 
 **Not available:** E5056A signal source analyzer, N9030B/N9020B X-series analyzer, any borrowed
 signal generator or analyzer. The affected tests keep the classes computed without them — 4-9 is
@@ -125,10 +131,11 @@ sensor (11792A + 478A cover 10 MHz – 18 GHz) · 5316A universal counter (the D
 2. **8563E** — spectrum, squegging detection, zero span, and a slower but detector-independent
    swept envelope.
 3. **5351A** — frequency.
-4. **Absolute power.** Two automatable paths to 18 GHz — **8902A + 11792A** (50 MHz – 18 GHz) and
-   **437B + 848x sensors** — with the **432A/478A** thermistor as a third, independent check below
-   10 GHz. An 8481A on the 437B also covers 10–50 MHz, which until now only the thermistor did.
-   Above 18 GHz: 8902A/11793A tuned RF level, `Relative` only, until an 8485A is on the 437B.
+4. **Absolute power — `Spec` across the whole instrument.** **437B + 8481A** (10 MHz – 18 GHz) and
+   **437B + 8485A** (to 26.5 GHz) together cover 10 MHz – 26.5 GHz, automatable over HP-IB. The
+   **8902A + 11792A** (50 MHz – 18 GHz) is a second automatable path and the **432A/478A**
+   thermistor a third, independent one below 10 GHz on a different measurement principle.
+   8902A/11793A tuned RF level is no longer needed for absolute power and drops to a cross-check.
 5. **3458A** — DC test points and the 0.5 V/GHz output.
 6. **8116A / DG1032Z** — pulse and modulation drive. **E4438C** as a clean VHF/UHF source, low-band
    LO and phase-noise baseline source.

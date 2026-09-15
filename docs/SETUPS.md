@@ -170,8 +170,8 @@ Used by: 4-5 power accuracy and flatness; 5-14 minimum-power confirmations (step
 ```mermaid
 flowchart LR
   n8340BRFOUTPUT35mmm["8340B RF OUTPUT (3.5 mm m)"]
-  n8902A11792AsensormoduleR["8902A + 11792A sensor module RF INPUT"]
-  n8340BRFOUTPUT35mmm -- "3.5 mm (f)-(f) adapter HP 5061-5311 + pad per config + cable C1" --> n8902A11792AsensormoduleR
+  nselectedpowersensor437B8["selected power sensor: 437B + 8485A (3.5 mm m) for band 4, 437B + 8481A (Type-N m) below 18 GHz, or the 8902A + 11792A module"]
+  n8340BRFOUTPUT35mmm -- "3.5 mm (f)-(f) adapter HP 5061-5311 + pad per config + cable C1" --> nselectedpowersensor437B8
   n432ARECORDEROUTPUTVRFand["432A RECORDER OUTPUT / V_RF and V_COMP terminals"]
   n3458Ainput["3458A input"]
   n432ARECORDEROUTPUTVRFand -- "44472A mux A + BNC cables L1/L2" --> n3458Ainput
@@ -179,12 +179,12 @@ flowchart LR
 
 ### Connections
 
-- 8340B RF OUTPUT (3.5 mm m) → 3.5 mm (f)-(f) adapter HP 5061-5311 → pad per config → cable C1 → 8902A + 11792A sensor module RF INPUT  **[verify-connector]**
+- 8340B RF OUTPUT (3.5 mm m) → 3.5 mm (f)-(f) adapter HP 5061-5311 → pad per config → cable C1 → selected power sensor: 437B + 8485A (3.5 mm m) for band 4, 437B + 8481A (Type-N m) below 18 GHz, or the 8902A + 11792A module  **[verify-connector]**
 - 432A RECORDER OUTPUT / V_RF and V_COMP terminals → 44472A mux A → BNC cables L1/L2 → 3458A input  **[verify-connector]**
 
 ### Physical settings (cannot be set over the bus)
 
-- Which sensor is in use is a config choice: 8902A+11792A (50 MHz-18 GHz), 437B + an 848x sensor (second automatable path), 8485A on the 437B or a borrowed U8485A for band 4, 432A+478A thermistor as the independent check below 10 GHz.
+- Which sensor is in use is a config choice. 437B + 8485A (to 26.5 GHz, 3.5 mm male) is the primary path and the only one that reaches band 4. 437B + 8481A (10 MHz - 18 GHz, Type-N) covers the bottom of band 0 including 10-50 MHz. 8902A + 11792A (50 MHz - 18 GHz) is the second automatable path. 432A + 478A thermistor is the independent check below 10 GHz.
 - 432A range and CAL FACTOR dials set by hand and recorded in the session.
 - Zero and calibrate the 11792A against the 8902A 50 MHz calibrator before the block; zero and calibrate the 437B against its own 50 MHz 1 mW reference.
 
@@ -192,7 +192,7 @@ flowchart LR
 
 - REFUSE any DUT setting above +7 dBm while the 478A thermistor mount is the selected sensor (10 mW rating) unless a characterised pad is declared (rule 5).
 - REFUSE above +17 dBm while the 11792A or an 848x sensor is selected, unless a characterised pad is declared (rule 5). Per-sensor limits differ: an 8481A is -30 to +20 dBm, an 8482B reaches +44 dBm - the driver enforces the limit for the sensor actually configured.
-- The 11792A covers 50 MHz-18 GHz only. Above 18 GHz results are Relative at best without a borrowed 26.5 GHz sensor.
+- Sensor frequency limits are enforced, not advisory: the 8481A stops at 18 GHz and the 11792A at 18 GHz, so a band-4 reading must be taken on the 8485A. The tool refuses to report band 4 as Spec on any other sensor.
 
 ### Wiring self-check
 

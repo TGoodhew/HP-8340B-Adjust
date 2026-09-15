@@ -48,6 +48,14 @@ public sealed class ProbeCommand : Command<BenchSettings>
                 continue;
             }
 
+            if (!instrumentConfig.Probeable)
+            {
+                table.AddRow(instrumentConfig.Role, instrumentConfig.Model,
+                    Markup.Escape(instrumentConfig.Address), "[blue]passive[/]",
+                    Markup.Escape(instrumentConfig.Note ?? "Not on the bus."));
+                continue;
+            }
+
             if (instrumentConfig.AddressUnknown && !settings.Simulate)
             {
                 table.AddRow(instrumentConfig.Role, instrumentConfig.Model, "[yellow]TBD[/]",
