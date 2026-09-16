@@ -31,6 +31,12 @@ public sealed class SimulatedAnalyzer
     /// <summary>Whether the model answers FREF? with EXT. See <see cref="Respond"/>.</summary>
     public bool ExternalReference { get; set; } = true;
 
+    /// <summary>
+    /// Shared bench state. When set, the marker reports the level the DUT was actually set to,
+    /// which is what makes a wiring self-check between the two mean anything.
+    /// </summary>
+    public SimulatedBenchState? Bench { get; set; }
+
     public SimulatedAnalyzer(int seed = 8563) => _random = new Random(seed);
 
     /// <summary>Builds the link, wiring the responder to this model.</summary>
@@ -64,7 +70,7 @@ public sealed class SimulatedAnalyzer
             return (Hp8563E.TracePoints / 2).ToString(CultureInfo.InvariantCulture);
 
         if (c.StartsWith("MKA?", StringComparison.OrdinalIgnoreCase))
-            return BuildTrace().Max().ToString("0.##", CultureInfo.InvariantCulture);
+            return (Bench?.LevelDbm ?? BuildTrace().Max()).ToString("0.##", CultureInfo.InvariantCulture);
 
         // A plot request returns HP-GL. Enough structure that a renderer or the 7090A forwarder
         // can be exercised without hardware.

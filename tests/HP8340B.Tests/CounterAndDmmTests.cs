@@ -59,7 +59,10 @@ public class Hp5351ADriverTests
         var (counter, link) = New();
         var hz = counter.ReadFrequencyHz();
 
-        Assert.Equal(10e9, hz);
+        // The simulated counter reports whatever the shared bench state says the DUT is set to,
+        // which defaults to 1 GHz. The value is incidental here — what this test is about is that
+        // nothing was written in order to read it.
+        Assert.Equal(1e9, hz);
 
         // Classic HP counters have no query mnemonic — nothing should have been written to read.
         Assert.Empty(link.History);

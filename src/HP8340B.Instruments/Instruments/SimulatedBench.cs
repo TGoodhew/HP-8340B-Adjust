@@ -9,13 +9,40 @@ namespace HP8340B.Instruments;
 /// tunable SRD-bias parameter that produces power reversal and spurs when over-biased — is
 /// M0-12; this is only enough to make <c>probe</c> and the command builders exercisable.
 /// </summary>
+/// <summary>
+/// State shared between simulated instruments, so that what one is set to is what another sees.
+///
+/// <para><b>Why this exists.</b> Until it did, the simulated counter returned a fixed 10 GHz
+/// whatever the simulated DUT had been set to — which is fine for exercising a driver in
+/// isolation, and useless for a wiring self-check, whose whole job is to confirm that what came
+/// out of one instrument arrived at another. The S2 check caught it.</para>
+///
+/// <para>Pass the same instance to every instrument on a simulated bench and they agree with each
+/// other. Leave it out and each gets its own, which is what a single-driver test wants.</para>
+/// </summary>
+public sealed class SimulatedBenchState
+{
+    /// <summary>What the DUT has been set to, in Hz.</summary>
+    public double CwHz { get; set; } = 1e9;
+
+    /// <summary>What the DUT's output level has been set to, in dBm.</summary>
+    public double LevelDbm { get; set; }
+}
+
 public static class SimulatedBench
 {
     /// <summary>
     /// A link that answers *IDN? plausibly for <paramref name="model"/> and otherwise stays quiet.
     /// </summary>
-    public static SimulatedInstrumentLink LinkFor(string model, string resourceName)
+    /// <param name="state">
+    /// Shared bench state. Pass one instance to every instrument for a coherent bench — see
+    /// <see cref="SimulatedBenchState"/>.
+    /// </param>
+    public static SimulatedInstrumentLink LinkFor(
+        string model, string resourceName, SimulatedBenchState? state = null)
     {
+        state ??= new SimulatedBenchState();
+
         var isDut = model.Contains("8340B", StringComparison.OrdinalIgnoreCase);
 
         var link = new SimulatedInstrumentLink(resourceName, command =>
@@ -61,9 +88,11 @@ public static class SimulatedBench
             }
 
             // The 5351A and the 3458A are talkers: a bare read returns the current measurement,
-            // so the responder answers whatever was last written rather than only queries.
+            // so the responder answers whatever was last written rather than only queries. The
+            // counter reports whatever the shared bench state says the DUT is set to, so a wiring
+            // self-check comparing the two is actually testing something.
             if (model.Contains("5351A", StringComparison.OrdinalIgnoreCase))
-                return "10000000000.0";
+                return state.CwHz.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
 
             if (model.Contains("3458A", StringComparison.OrdinalIgnoreCase))
                 return "5.0000E-3";
@@ -95,6 +124,11 @@ public static class SimulatedBench
             // ASCII characters, so the simulator returns exactly that width.
             if (isDut && c.StartsWith("OI", StringComparison.OrdinalIgnoreCase))
                 return "HP8340B SIMULATED  "[..19];
+
+            // The 8563E's marker reports the DUT's level, for the same reason as the counter.
+            if (model.Contains("8563E", StringComparison.OrdinalIgnoreCase)
+                && c.StartsWith("MKA", StringComparison.OrdinalIgnoreCase))
+                return state.LevelDbm.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
 
             return string.Empty;
         });
@@ -131,10 +165,14 @@ public static class SimulatedBench
     }
 
     /// <summary>Builds a simulated driver appropriate to <paramref name="config"/>'s model.</summary>
-    public static IInstrument Create(InstrumentConfig config)
+    /// <param name="config">Instrument to build.</param>
+    /// <param name="state">
+    /// Shared bench state, so instruments on the same simulated bench agree with each other.
+    /// </param>
+    public static IInstrument Create(InstrumentConfig config, SimulatedBenchState? state = null)
     {
         var resourceName = config.AddressUnknown ? $"SIM::{config.Role}::INSTR" : config.Address;
-        var link = LinkFor(config.Model, resourceName);
+        var link = LinkFor(config.Model, resourceName, state);
 
         // Carry the configured timeout even in simulation, so a bad value shows up in tests
         // rather than only on the bench.
@@ -145,10 +183,10 @@ public static class SimulatedBench
         // physical model in SimulatedSweeper, so its status bytes -- UNLEVELED in particular --
         // mean what they mean on hardware.
         if (config.Role.Equals("dut", StringComparison.OrdinalIgnoreCase))
-            return new Hp8340B(new SimulatedSweeper().CreateLink(resourceName));
+            return new Hp8340B(new SimulatedSweeper().CreateLink(resourceName, state));
 
         if (config.Model.Contains("8563E", StringComparison.OrdinalIgnoreCase))
-            return new Hp8563E(new SimulatedAnalyzer().CreateLink(resourceName), config.Role);
+            return new Hp8563E(new SimulatedAnalyzer { Bench = state }.CreateLink(resourceName), config.Role);
 
         if (config.Model.Contains("5351A", StringComparison.OrdinalIgnoreCase))
             return new Hp5351A(link, config.Role);
@@ -217,9 +255,10 @@ public static class InstrumentFactory
     /// Creates a driver for <paramref name="config"/>. With <paramref name="simulate"/> true every
     /// instrument is a simulator; otherwise a live VISA session is opened.
     /// </summary>
-    public static IInstrument Create(InstrumentConfig config, bool simulate)
+    public static IInstrument Create(
+        InstrumentConfig config, bool simulate, SimulatedBenchState? state = null)
     {
-        if (simulate) return SimulatedBench.Create(config);
+        if (simulate) return SimulatedBench.Create(config, state);
 
         if (config.AddressUnknown)
             throw new InvalidOperationException(

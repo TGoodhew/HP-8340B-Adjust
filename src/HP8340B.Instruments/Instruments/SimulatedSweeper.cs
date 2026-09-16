@@ -522,9 +522,19 @@ public sealed class SimulatedSweeper
     /// would on hardware: the status bytes reflect the model, so a settle-wait, an UNLEVELED
     /// check and a reference check all exercise their real code paths.
     /// </summary>
-    public SimulatedInstrumentLink CreateLink(string resourceName = "SIM::dut::INSTR")
+    /// <summary>
+    /// Shared bench state, so what this DUT is set to is what the counter and analyzer see.
+    /// See <see cref="SimulatedBenchState"/>.
+    /// </summary>
+    public SimulatedBenchState? Bench { get; set; }
+
+    public SimulatedInstrumentLink CreateLink(
+        string resourceName = "SIM::dut::INSTR", SimulatedBenchState? bench = null)
     {
-        var link = new SimulatedInstrumentLink(resourceName, Respond)
+        Bench = bench;
+
+        SimulatedInstrumentLink? link = null;
+        link = new SimulatedInstrumentLink(resourceName, command => Respond(command, link!))
         {
             StatusByte = (byte)(StatusByte1.RfSettled | StatusByte1.EndOfSweep),
         };
@@ -551,14 +561,52 @@ public sealed class SimulatedSweeper
         ];
     }
 
-    private string Respond(string command)
+    private int _applied;
+
+    private string Respond(string command, SimulatedInstrumentLink link)
     {
         var c = command.TrimStart();
+
+        ApplyWrites(link);
 
         // OI is the identification code; Table 3-2 specifies 19 ASCII characters.
         if (c.StartsWith("OI", StringComparison.OrdinalIgnoreCase))
             return "HP8340B SIMULATED  "[..19];
 
         return string.Empty;
+    }
+
+    /// <summary>
+    /// Mirrors frequency and level settings into the shared bench state, so another simulated
+    /// instrument sees what this one was set to. Without it a wiring self-check comparing two
+    /// instruments would be comparing a request against a constant.
+    /// </summary>
+    private void ApplyWrites(SimulatedInstrumentLink link)
+    {
+        if (Bench is null) return;
+
+        for (; _applied < link.History.Count; _applied++)
+        {
+            var c = link.History[_applied].Trim();
+
+            if (c.StartsWith("CW", StringComparison.OrdinalIgnoreCase)
+                && c.EndsWith("GZ", StringComparison.OrdinalIgnoreCase)
+                && double.TryParse(c[2..^2], System.Globalization.NumberStyles.Float,
+                                   System.Globalization.CultureInfo.InvariantCulture, out var ghz))
+            {
+                Bench.CwHz = ghz * 1e9;
+                CwGHz = ghz;
+                continue;
+            }
+
+            if (c.StartsWith("PL", StringComparison.OrdinalIgnoreCase)
+                && c.EndsWith("DB", StringComparison.OrdinalIgnoreCase)
+                && double.TryParse(c[2..^2], System.Globalization.NumberStyles.Float,
+                                   System.Globalization.CultureInfo.InvariantCulture, out var dbm))
+            {
+                Bench.LevelDbm = dbm;
+                RequestedDbm = dbm;
+            }
+        }
     }
 }
