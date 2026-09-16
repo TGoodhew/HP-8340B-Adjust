@@ -327,3 +327,123 @@ public class FailedWriteTests
         Assert.Contains("A1B2", driver.Probe().Detail!);
     }
 }
+
+/// <summary>
+/// A learn-string write that fails part way through.
+///
+/// <para>Raised by the HP-Attenuator session, which found the same shape in its switch driver and
+/// pointed out that this one is worse. Their 11713A case is <i>unknowable</i> — the device cannot
+/// be asked. This one is <b>silent and persistent</b>: the DUT will answer every query perfectly
+/// happily from a configuration that is part old and part new, and nothing about the readings
+/// will look wrong.</para>
+/// </summary>
+public class LearnStringFailureTests
+{
+    private static byte[] AState(byte fill) => Enumerable.Repeat(fill, 123).ToArray();
+
+    [Fact]
+    public void AFailedLearnStringWriteLeavesTheStateUnknown()
+    {
+        var link = new ScriptedInstrumentLink();
+        var dut = new Hp8340B(link);
+
+        Assert.True(dut.StateIsKnown);
+
+        // The payload fails, not the IL command — that is the case that leaves the instrument
+        // half-configured, because it had already started listening for 123 bytes.
+        link.FailWriteBytes = true;
+        Assert.ThrowsAny<Exception>(() => dut.WriteLearnString(AState(0x5A)));
+
+        Assert.False(dut.StateIsKnown);
+        Assert.Contains("part way through", dut.LastStateChange!);
+    }
+
+    [Fact]
+    public void AnILThatNeverWentOutLeavesTheStateKnown()
+    {
+        // The non-obvious half. If the command itself failed the instrument never started
+        // listening, so its configuration is exactly what it was. Marking it unknown here would
+        // send somebody to preset an instrument that was fine.
+        var link = new ScriptedInstrumentLink { FailWrites = true };
+        var dut = new Hp8340B(link);
+
+        Assert.ThrowsAny<Exception>(() => dut.WriteLearnString(AState(0x5A)));
+
+        Assert.True(dut.StateIsKnown);
+    }
+
+    [Fact]
+    public void ASuccessfulWriteLeavesItKnown()
+    {
+        var link = new ScriptedInstrumentLink();
+        var dut = new Hp8340B(link);
+
+        dut.WriteLearnString(AState(0x5A));
+
+        Assert.True(dut.StateIsKnown);
+        Assert.Contains("restored", dut.LastStateChange!);
+    }
+
+    [Fact]
+    public void TheProbeSaysTheStateIsUnknownBecauseNoStatusBitWill()
+    {
+        // This is the whole reason it has to be tracked in the driver: a half-written learn string
+        // sets no flag on the instrument. If nothing says so here, nothing says so at all.
+        var model = new SimulatedSweeper();
+        var link = model.CreateLink();
+        var dut = new Hp8340B(link);
+
+        Assert.DoesNotContain("STATE UNKNOWN", dut.Probe().Detail ?? "");
+
+        // Force the failure through a link that refuses the payload, then check the same driver.
+        var failing = new ScriptedInstrumentLink { FailWriteBytes = true, Response = "HP8340B SIM" };
+        var broken = new Hp8340B(failing);
+
+        Assert.ThrowsAny<Exception>(() => broken.WriteLearnString(AState(0x11)));
+
+        failing.FailWriteBytes = false;
+        Assert.Contains("STATE UNKNOWN", broken.Probe().Detail!);
+        Assert.Contains("part old and part new", broken.Probe().Detail!);
+    }
+
+    [Fact]
+    public void StateCanOnlyBeDeclaredKnownAgainExplicitly()
+    {
+        // Nothing else can establish it, so nothing else gets to claim it. A preset or a
+        // successful restore is the only cure.
+        var link = new ScriptedInstrumentLink { FailWriteBytes = true };
+        var dut = new Hp8340B(link);
+
+        Assert.ThrowsAny<Exception>(() => dut.WriteLearnString(AState(0x11)));
+        Assert.False(dut.StateIsKnown);
+
+        dut.DeclareStateKnown("Instrument preset by hand.");
+
+        Assert.True(dut.StateIsKnown);
+        Assert.Equal("Instrument preset by hand.", dut.LastStateChange);
+    }
+
+    [Fact]
+    public void ADeclarationNeedsToSayHow()
+    {
+        // It goes into the session record as the reason the state is trusted again, and "because
+        // somebody said so" is not a reason.
+        var dut = new Hp8340B(new ScriptedInstrumentLink());
+
+        Assert.Throws<ArgumentException>(() => dut.DeclareStateKnown("  "));
+    }
+
+    [Fact]
+    public void AWrongLengthLearnStringIsRefusedBeforeAnythingIsSent()
+    {
+        // The state stays known, because nothing went out: IL was never sent, so the instrument
+        // is not waiting for bytes.
+        var link = new ScriptedInstrumentLink();
+        var dut = new Hp8340B(link);
+
+        Assert.Throws<ArgumentException>(() => dut.WriteLearnString(new byte[100]));
+
+        Assert.True(dut.StateIsKnown);
+        Assert.Empty(link.History);
+    }
+}

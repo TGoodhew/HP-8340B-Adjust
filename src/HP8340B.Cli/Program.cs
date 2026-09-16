@@ -32,6 +32,9 @@ app.Configure(config =>
         route.AddCommand<RouteStatusCommand>("status")
              .WithDescription("List every routed leg with its slot, channels and frequency limit.");
 
+        route.AddCommand<RouteCardCommand>("card")
+             .WithDescription("Print the routed SR/SV hook-up card for a campaign.");
+
         route.AddCommand<RouteShowCommand>("show")
              .WithDescription("Show one leg in full, with its band coverage.");
     });

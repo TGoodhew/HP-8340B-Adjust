@@ -231,7 +231,56 @@ public sealed class Hp8340B : IInstrument
                 nameof(learnString));
 
         _link.Write(Hp8340BCommands.Require("IL"));
-        _link.WriteBytes(learnString);
+
+        // Once IL has gone out the instrument is waiting for 123 bytes. From here until they have
+        // all arrived, the DUT's state is whatever the transfer left behind.
+        StateIsKnown = false;
+
+        try
+        {
+            _link.WriteBytes(learnString);
+        }
+        catch
+        {
+            LastStateChange =
+                "A learn-string write FAILED part way through. The instrument had already accepted "
+                + "IL and was expecting 123 bytes, so it is now holding some mixture of the old "
+                + "state and the new one — a configuration nobody chose and nobody can name.";
+            throw;
+        }
+
+        StateIsKnown = true;
+        LastStateChange = $"Learn string restored ({LearnStringLength} bytes).";
+    }
+
+    /// <summary>
+    /// False when the instrument may be in a configuration nobody chose.
+    ///
+    /// <para>Set by a learn-string write that failed part way through. That is worse than the
+    /// listen-only case on the 11713A, which is merely unknowable: here the wrong state is
+    /// <b>silent and persistent</b>. The instrument will answer every subsequent query perfectly
+    /// happily, from a configuration that is part old and part new, and nothing about the readings
+    /// will look wrong.</para>
+    ///
+    /// <para>The only cure is a known-good state: preset, or restore a learn string that succeeds.
+    /// Raised by the HP-Attenuator session, which found the same shape in its switch driver and
+    /// pointed out that this one is worse.</para>
+    /// </summary>
+    public bool StateIsKnown { get; private set; } = true;
+
+    /// <summary>What last changed the instrument's state, for the session record (rule 1).</summary>
+    public string? LastStateChange { get; private set; }
+
+    /// <summary>
+    /// Declares the instrument's state known again, after a preset or a successful restore.
+    /// Explicit, because the whole point is that nothing else can establish it.
+    /// </summary>
+    public void DeclareStateKnown(string how)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(how);
+
+        StateIsKnown = true;
+        LastStateChange = how;
     }
 
     // --- Status and identity ---------------------------------------------------------------
@@ -326,6 +375,15 @@ public sealed class Hp8340B : IInstrument
                        : extended.HasFlag(StatusByte2.RfUnlocked) ? "RF UNLOCKED. "
                        : extended.HasFlag(StatusByte2.OvenCold) ? "Oven cold — still warming up. "
                        : null;
+
+            // A half-written learn string does not show up in any status bit: the instrument is
+            // perfectly happy, just not in a configuration anybody chose. If nothing says so here
+            // nothing will.
+            if (!StateIsKnown)
+                detail += "STATE UNKNOWN: " + LastStateChange
+                          + " Preset the instrument or restore a learn string before measuring — "
+                          + "it will answer every query happily from a state that is part old and "
+                          + "part new. ";
 
             return new ProbeResult(
                 Role, Model, _link.ResourceName,

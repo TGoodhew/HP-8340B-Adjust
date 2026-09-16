@@ -75,9 +75,14 @@ public sealed class SetupShowCommand : Command<SetupShowSettings>
             .Border(BoxBorder.Rounded)
             .Expand());
 
-        AnsiConsole.MarkupLine(
-            "\n[yellow]The acknowledgement gate and the wiring self-check are not built yet[/] "
-            + "(M0-19 and M0-20). Check the wiring by hand until they are.");
+        if (setup.SelfCheck is not null)
+            AnsiConsole.MarkupLine(
+                SelfChecks.Implemented.Contains(setup.Id)
+                    ? "\n[green]This setup has an executable wiring self-check.[/] A block will "
+                      + "not start until the card is acknowledged and the check passes."
+                    : "\n[yellow]This setup's self-check is prose only - there is no executable "
+                      + "check for it yet.[/] That is reported as NotRun, not as a pass, so a "
+                      + "block gated on it will refuse to start.");
         return 0;
     }
 }

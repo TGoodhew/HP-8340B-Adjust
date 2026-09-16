@@ -1,3 +1,4 @@
+using HP8340B.Instruments;
 using HP8340B.Instruments.Model;
 using HP8340B.Measurements.PhaseNoise;
 using Xunit;
@@ -267,5 +268,161 @@ public class PhaseNoiseTests
         {
             File.Delete(path);
         }
+    }
+}
+
+/// <summary>
+/// The PN hand-off. Rule 5: never hold a GPIB session on the analyzer while PN is acquiring.
+/// </summary>
+public class PnHandoffTests
+{
+    private static Hp8340B Dut() =>
+        new(SimulatedBench.LinkFor("HP 8340B", "SIM::dut::INSTR"));
+
+    private static ProbeResult Responding() =>
+        new("spectrum-analyzer", "HP 8563E", "GPIB0::18::INSTR", Responded: true,
+            Identity: "HP8563E");
+
+    [Fact]
+    public void TheAnalyzerIsReleasedBeforeTheOperatorIsToldToStartPn()
+    {
+        // The ordering IS the rule. A hand-off that printed "now run PN" and then closed the
+        // session would leave a window with two controllers on one analyzer, which is exactly the
+        // failure being avoided.
+        var order = new List<string>();
+
+        PnHandoff.Run(
+            Dut(), 10e9, 0,
+            releaseAnalyzer: () => order.Add("released"),
+            prompt: _ => { order.Add("prompted"); return true; },
+            reprobeAnalyzer: () => { order.Add("reprobed"); return Responding(); },
+            settleTimeout: TimeSpan.FromSeconds(1));
+
+        Assert.Equal(["released", "prompted", "reprobed"], order);
+    }
+
+    [Fact]
+    public void TheDutIsSetBeforeTheBusIsGivenAway()
+    {
+        // Once the analyzer session is closed this tool should not be reaching for instruments,
+        // so everything it needs to do happens first.
+        var dut = Dut();
+        var link = (HP8340B.Instruments.Visa.SimulatedInstrumentLink)dut.Link;
+        var writesAtRelease = -1;
+
+        PnHandoff.Run(
+            dut, 10e9, 0,
+            releaseAnalyzer: () => writesAtRelease = link.History.Count,
+            prompt: _ => true,
+            reprobeAnalyzer: Responding,
+            settleTimeout: TimeSpan.FromSeconds(1));
+
+        Assert.True(writesAtRelease > 0, "The DUT should have been set up before the release.");
+        Assert.Equal(writesAtRelease, link.History.Count);
+    }
+
+    [Fact]
+    public void ARecoveredBusIsConfirmedRatherThanAssumed()
+    {
+        var result = PnHandoff.Run(
+            Dut(), 10e9, 0,
+            releaseAnalyzer: () => { },
+            prompt: _ => true,
+            reprobeAnalyzer: Responding,
+            settleTimeout: TimeSpan.FromSeconds(1));
+
+        Assert.True(result.BusReleased);
+        Assert.True(result.BusRecovered);
+        Assert.Contains(result.Steps, s => s.What.Contains("re-probed"));
+    }
+
+    [Fact]
+    public void AnAnalyzerThatDoesNotComeBackIsReportedNotIgnored()
+    {
+        // PN may still hold the session, or a Prologix adapter may need reinitialising. Either
+        // way nothing else should touch the analyzer, so this has to be visible.
+        var result = PnHandoff.Run(
+            Dut(), 10e9, 0,
+            releaseAnalyzer: () => { },
+            prompt: _ => true,
+            reprobeAnalyzer: () => null,
+            settleTimeout: TimeSpan.FromSeconds(1));
+
+        Assert.True(result.BusReleased);
+        Assert.False(result.BusRecovered);
+        Assert.Contains(result.Steps, s => s.Detail?.Contains("DID NOT respond") == true);
+    }
+
+    [Fact]
+    public void AbandoningTheAcquisitionLeavesTheBusReleasedAndSaysSo()
+    {
+        var result = PnHandoff.Run(
+            Dut(), 10e9, 0,
+            releaseAnalyzer: () => { },
+            prompt: _ => false,
+            reprobeAnalyzer: () => throw new InvalidOperationException("must not be called"),
+            settleTimeout: TimeSpan.FromSeconds(1));
+
+        Assert.True(result.BusReleased);
+        Assert.False(result.BusRecovered);
+        Assert.Contains(result.Steps, s => s.Detail == "Abandoned.");
+    }
+
+    [Fact]
+    public void AnUnsettledDutStopsTheHandoffBeforeAnythingIsReleased()
+    {
+        // Acquiring phase noise on a source that has not settled measures the settling, not the
+        // source. Better to stop than to spend ten minutes acquiring a meaningless trace.
+        var link = new HP8340B.Instruments.Visa.ScriptedInstrumentLink { TrailingPoll = 0 };
+        var released = false;
+
+        Assert.Throws<InvalidOperationException>(() => PnHandoff.Run(
+            new Hp8340B(link), 10e9, 0,
+            releaseAnalyzer: () => released = true,
+            prompt: _ => true,
+            reprobeAnalyzer: Responding,
+            settleTimeout: TimeSpan.FromMilliseconds(30)));
+
+        Assert.False(released);
+    }
+
+    [Fact]
+    public void ThePromptNamesTheCarrierAndWarnsAgainstTouchingTheAnalyzer()
+    {
+        string? message = null;
+
+        PnHandoff.Run(
+            Dut(), 10e9, 0,
+            releaseAnalyzer: () => { },
+            prompt: m => { message = m; return true; },
+            reprobeAnalyzer: Responding,
+            settleTimeout: TimeSpan.FromSeconds(1));
+
+        Assert.Contains("10", message!);
+        Assert.Contains("Do not let this tool touch the analyzer", message!);
+    }
+
+    [Fact]
+    public void EveryStepIsTimestampedForTheSession()
+    {
+        var result = PnHandoff.Run(
+            Dut(), 10e9, 0,
+            releaseAnalyzer: () => { },
+            prompt: _ => true,
+            reprobeAnalyzer: Responding,
+            settleTimeout: TimeSpan.FromSeconds(1));
+
+        Assert.All(result.Steps, s => Assert.NotEqual(default, s.At));
+        Assert.True(result.Steps.Count >= 4);
+    }
+
+    [Fact]
+    public void TheAdapterNoteDiffersBecauseTheHandoffDoes()
+    {
+        // D-08. A Prologix adapter is a single serial port, so only one program can hold it —
+        // closing the VISA session is not the whole story, and PN gives no useful error if the
+        // port is still busy.
+        Assert.Contains("serial port", PnHandoff.AdapterNote(prologix: true));
+        Assert.Contains("arbitrates", PnHandoff.AdapterNote(prologix: false));
     }
 }

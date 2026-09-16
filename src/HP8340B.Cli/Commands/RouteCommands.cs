@@ -1,3 +1,4 @@
+using HP8340B.Bench;
 using HP8340B.Bench.Model;
 using HP8340B.Instruments.Model;
 using Spectre.Console;
@@ -72,6 +73,33 @@ public sealed class RouteStatusCommand : Command<RouteSettings>
                 + "That is decision D-11, and it cannot be read off the bus: the 3499A reports "
                 + "\"GP RELAY 44471\" for every 44471/44476/44477, and its guide says to check the "
                 + "modules physically. Trace the cables and edit Data/routing.json.");
+
+        return 0;
+    }
+}
+
+/// <summary>Prints the routed hook-up card for a campaign (M0-19 and M0-22).</summary>
+public sealed class RouteCardCommand : Command<RouteSettings>
+{
+    public override int Execute(CommandContext context, RouteSettings settings)
+    {
+        var campaign = RoutingCampaign.Any;
+
+        if (!string.IsNullOrWhiteSpace(settings.Campaign)
+            && !Enum.TryParse(settings.Campaign, ignoreCase: true, out campaign))
+        {
+            AnsiConsole.MarkupLine(
+                $"[red]Unknown campaign '{Markup.Escape(settings.Campaign)}'.[/] "
+                + "Use Adjustment or Verification.");
+            return 1;
+        }
+
+        var map = RoutingMap.LoadDefault();
+
+        AnsiConsole.Write(new Panel(Markup.Escape(HookUpCard.RenderRouted(map, campaign)))
+            .Header($"[bold]Hook-up card SR / SV — {campaign}[/]")
+            .Border(BoxBorder.Rounded)
+            .Expand());
 
         return 0;
     }

@@ -54,6 +54,16 @@ public sealed class ScriptedInstrumentLink : IInstrumentLink
     /// </summary>
     public bool FailWrites { get; set; }
 
+    /// <summary>
+    /// When true, binary writes throw but text writes do not.
+    ///
+    /// <para>Separate from <see cref="FailWrites"/> because the interesting learn-string case is
+    /// the one where <c>IL</c> goes out fine and the 123-byte payload then dies. If the command
+    /// itself fails the instrument never started listening and nothing is wrong with its state;
+    /// it is only once IL has been accepted that a failure leaves it half-configured.</para>
+    /// </summary>
+    public bool FailWriteBytes { get; set; }
+
     public ScriptedInstrumentLink(
         IEnumerable<int>? statusBytes = null, string resourceName = "SCRIPT::instrument::INSTR")
     {
@@ -98,8 +108,20 @@ public sealed class ScriptedInstrumentLink : IInstrumentLink
     public void WriteBytes(byte[] data)
     {
         ArgumentNullException.ThrowIfNull(data);
+
+        if (FailWrites || FailWriteBytes)
+        {
+            Log(BusOperation.Write, $"WRITE FAILED: <{data.Length} bytes>");
+            throw new TimeoutException(
+                $"{ResourceName} did not accept {data.Length} bytes (scripted fault).");
+        }
+
+        LastBytesWritten = data;
         Log(BusOperation.Write, $"<{data.Length} bytes>");
     }
+
+    /// <summary>The most recent payload passed to <see cref="WriteBytes"/>.</summary>
+    public byte[] LastBytesWritten { get; private set; } = [];
 
     public byte SerialPoll()
     {
