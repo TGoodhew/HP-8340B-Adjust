@@ -100,12 +100,34 @@ public sealed class VisaInstrumentLink : IInstrumentLink
         Log(BusOperation.Write, $"<{data.Length} bytes>", null, sw.Elapsed);
     }
 
+    /// <summary>
+    /// Reads the status byte.
+    ///
+    /// <para>A failure propagates rather than being reported as a status of zero. Those two are
+    /// not the same thing — one is a wedged bus and the other a quiet instrument — and collapsing
+    /// them turns a bus fault into a measurement that merely looks slow. The HP-Attenuator session
+    /// found exactly that failure mode in its own harness.</para>
+    ///
+    /// <para>The failed poll is logged before it is rethrown. It is the most interesting event
+    /// that can happen on this bus and an audit log that omits it is worse than no log, because it
+    /// shows an unbroken run of successful traffic right up to the point where everything stopped.
+    /// </para>
+    /// </summary>
     public byte SerialPoll()
     {
         var sw = Stopwatch.StartNew();
-        var status = (byte)_session.ReadStatusByte();
-        Log(BusOperation.SerialPoll, string.Empty, status, sw.Elapsed);
-        return status;
+
+        try
+        {
+            var status = (byte)_session.ReadStatusByte();
+            Log(BusOperation.SerialPoll, string.Empty, status, sw.Elapsed);
+            return status;
+        }
+        catch (Exception ex)
+        {
+            Log(BusOperation.SerialPoll, $"poll FAILED: {ex.Message}", null, sw.Elapsed);
+            throw;
+        }
     }
 
     /// <summary>Lists VISA INSTR resources visible to the resource manager.</summary>
