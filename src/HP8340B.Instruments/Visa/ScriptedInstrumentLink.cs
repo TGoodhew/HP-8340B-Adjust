@@ -48,6 +48,12 @@ public sealed class ScriptedInstrumentLink : IInstrumentLink
     /// <summary>What a read returns.</summary>
     public string Response { get; set; } = string.Empty;
 
+    /// <summary>
+    /// When true, every write throws. Came back from the HP-Attenuator session, which took the
+    /// scripted-link idea and added this — the pattern has now made the trip in both directions.
+    /// </summary>
+    public bool FailWrites { get; set; }
+
     public ScriptedInstrumentLink(
         IEnumerable<int>? statusBytes = null, string resourceName = "SCRIPT::instrument::INSTR")
     {
@@ -64,6 +70,13 @@ public sealed class ScriptedInstrumentLink : IInstrumentLink
     public void Write(string command)
     {
         ArgumentNullException.ThrowIfNull(command);
+
+        if (FailWrites)
+        {
+            Log(BusOperation.Write, $"WRITE FAILED: {command}");
+            throw new TimeoutException($"{ResourceName} did not accept '{command}' (scripted fault).");
+        }
+
         _history.Add(command);
         Log(BusOperation.Write, command);
     }

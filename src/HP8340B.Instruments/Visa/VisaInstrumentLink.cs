@@ -55,11 +55,34 @@ public sealed class VisaInstrumentLink : IInstrumentLink
         Log(BusOperation.Clear, string.Empty, null, sw.Elapsed);
     }
 
+    /// <summary>
+    /// Sends a command.
+    ///
+    /// <para><b>A failed write is logged before the exception propagates.</b> Repo rule 1 requires
+    /// every write to the DUT to be recorded with its timestamp, and a write that threw is still a
+    /// write that may have reached the instrument — a partial transfer is not a non-event. Leaving
+    /// it out of the log breaks that rule in the one case where the record matters most.</para>
+    ///
+    /// <para>It does <b>not</b> go into <see cref="History"/>. That list means "commands that went
+    /// out", and drivers assert against its last entry; putting a failure there would claim
+    /// something was sent that may not have been. The transaction log is the audit record, and it
+    /// marks the attempt as failed. See <see cref="Transactions"/>.</para>
+    /// </summary>
     public void Write(string command)
     {
         ArgumentNullException.ThrowIfNull(command);
         var sw = Stopwatch.StartNew();
-        _session.RawIO.Write(command + "\n");
+
+        try
+        {
+            _session.RawIO.Write(command + "\n");
+        }
+        catch (Exception ex)
+        {
+            Log(BusOperation.Write, $"WRITE FAILED: {command} ({ex.Message})", null, sw.Elapsed);
+            throw;
+        }
+
         _history.Add(command);
         Log(BusOperation.Write, command, null, sw.Elapsed);
     }
@@ -71,9 +94,18 @@ public sealed class VisaInstrumentLink : IInstrumentLink
     public string Read()
     {
         var sw = Stopwatch.StartNew();
-        var response = _session.RawIO.ReadString().Trim();
-        Log(BusOperation.Read, response, null, sw.Elapsed);
-        return response;
+
+        try
+        {
+            var response = _session.RawIO.ReadString().Trim();
+            Log(BusOperation.Read, response, null, sw.Elapsed);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            Log(BusOperation.Read, $"READ FAILED: {ex.Message}", null, sw.Elapsed);
+            throw;
+        }
     }
 
     public string Query(string command)
@@ -85,18 +117,47 @@ public sealed class VisaInstrumentLink : IInstrumentLink
     public byte[] ReadBytes(int count)
     {
         var sw = Stopwatch.StartNew();
-        var data = _session.RawIO.Read(count);
-        Log(BusOperation.Read, $"<{data.Length} bytes>", null, sw.Elapsed);
-        return data;
+
+        try
+        {
+            var data = _session.RawIO.Read(count);
+            Log(BusOperation.Read, $"<{data.Length} bytes>", null, sw.Elapsed);
+            return data;
+        }
+        catch (Exception ex)
+        {
+            Log(BusOperation.Read, $"READ FAILED after {count} bytes requested: {ex.Message}",
+                null, sw.Elapsed);
+            throw;
+        }
     }
 
+    /// <summary>
+    /// Sends raw bytes — the learn string, and nothing else on this bench.
+    ///
+    /// <para>A failure here matters more than most: a learn-string write is 123 bytes of
+    /// instrument state, and a partial one leaves the DUT in a condition nobody chose. Logged
+    /// before the exception propagates, per rule 1.</para>
+    /// </summary>
     public void WriteBytes(byte[] data)
     {
         ArgumentNullException.ThrowIfNull(data);
         var sw = Stopwatch.StartNew();
-        // No terminator: the instrument counts the bytes it expects, and a trailing newline
-        // would be read as data.
-        _session.RawIO.Write(data);
+
+        try
+        {
+            // No terminator: the instrument counts the bytes it expects, and a trailing newline
+            // would be read as data.
+            _session.RawIO.Write(data);
+        }
+        catch (Exception ex)
+        {
+            Log(BusOperation.Write,
+                $"WRITE FAILED: <{data.Length} bytes> ({ex.Message}). A partial binary write "
+                + "leaves the instrument in a state nobody chose.", null, sw.Elapsed);
+            throw;
+        }
+
         Log(BusOperation.Write, $"<{data.Length} bytes>", null, sw.Elapsed);
     }
 

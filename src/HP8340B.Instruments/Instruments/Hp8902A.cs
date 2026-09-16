@@ -271,11 +271,49 @@ public sealed class Hp11713A : IInstrument
         Role = role;
     }
 
-    /// <summary>Closes the given relays (A1-A0, B1-B0), opening the rest of the same bank.</summary>
+    /// <summary>
+    /// The relay setting last successfully sent, or null if none has been, or if the last attempt
+    /// failed.
+    ///
+    /// <para><b>This is the only record there is.</b> A listen-only device cannot be asked what
+    /// state it is in, so unlike every other instrument here there is no readback to fall back
+    /// on — see <see cref="StateIsKnown"/>.</para>
+    /// </summary>
+    public string? LastRelaySetting { get; private set; }
+
+    /// <summary>
+    /// False once a relay command has failed to go out.
+    ///
+    /// <para>A failed write to a device that cannot talk is the worst combination on this bench:
+    /// the pads may or may not have moved, and nothing can be asked. Anything depending on the
+    /// attenuation being what it was told to be is now depending on a guess, so this says so
+    /// rather than leaving the last successful setting standing as if it were still true.</para>
+    /// </summary>
+    public bool StateIsKnown { get; private set; } = true;
+
+    /// <summary>
+    /// Closes the given relays (A1-A0, B1-B0), opening the rest of the same bank.
+    ///
+    /// <para>If the write fails the exception propagates, and <see cref="StateIsKnown"/> goes
+    /// false and stays false until a later command succeeds.</para>
+    /// </summary>
     public void SetRelays(string closeChannels)
     {
         ArgumentNullException.ThrowIfNull(closeChannels);
-        _link.Write(closeChannels);
+
+        try
+        {
+            _link.Write(closeChannels);
+        }
+        catch
+        {
+            StateIsKnown = false;
+            LastRelaySetting = null;
+            throw;
+        }
+
+        LastRelaySetting = closeChannels;
+        StateIsKnown = true;
     }
 
     public ProbeResult Probe() => new(
@@ -283,8 +321,13 @@ public sealed class Hp11713A : IInstrument
         Responded: true,
         Identity: "listen-only",
         ExternalReference: null,
-        Detail: "Listen-only device: it accepts commands but cannot talk, so its presence and "
-                + "state cannot be confirmed over the bus. Confirm at the front panel.");
+        Detail: StateIsKnown
+            ? "Listen-only device: it accepts commands but cannot talk, so its presence and "
+              + "state cannot be confirmed over the bus. Confirm at the front panel."
+              + (LastRelaySetting is null ? "" : $" Last setting sent: {LastRelaySetting}.")
+            : "Listen-only device, and a relay command FAILED to go out. The pads may or may not "
+              + "have moved and there is no way to ask. Set the relays again, and confirm at the "
+              + "front panel before trusting any attenuation figure.");
 
     public void Dispose() => _link.Dispose();
 }

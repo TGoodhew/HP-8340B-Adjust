@@ -220,3 +220,110 @@ public class ScriptedPollTests
         Assert.False(dut.WaitSettled(TimeSpan.FromMilliseconds(30)));
     }
 }
+
+/// <summary>
+/// What the bus log records when a WRITE fails.
+///
+/// <para>The HP-Attenuator session found the mirror of my failed-poll gap on their side, in their
+/// <c>Write</c> as well as their trace. Checking here found the same shape in four places: the
+/// log and the history were both appended only after a successful call, so a write that threw
+/// left no record at all.</para>
+///
+/// <para>That is worse here than a diagnostics inconvenience. Repo rule 1 requires every write to
+/// the DUT to be logged with its timestamp, and a write that threw may still have reached the
+/// instrument — a partial transfer is not a non-event.</para>
+/// </summary>
+public class FailedWriteTests
+{
+    [Fact]
+    public void AFailedWriteIsRecordedInTheTransactionLog()
+    {
+        var link = new ScriptedInstrumentLink { FailWrites = true };
+
+        Assert.Throws<TimeoutException>(() => link.Write("CW 10 GZ"));
+
+        var writes = link.Transactions.Where(t => t.Operation == BusOperation.Write).ToList();
+
+        Assert.Single(writes);
+        Assert.Contains("WRITE FAILED", writes[0].Text);
+        Assert.Contains("CW 10 GZ", writes[0].Text);   // names the command that was in flight
+    }
+
+    [Fact]
+    public void AFailedWriteDoesNotEnterTheHistory()
+    {
+        // History means "commands that went out", and drivers assert against its last entry.
+        // Putting a failure there would claim something was sent that may not have been. The
+        // transaction log is the audit record; the two are deliberately different.
+        var link = new ScriptedInstrumentLink { FailWrites = true };
+
+        Assert.Throws<TimeoutException>(() => link.Write("CW 10 GZ"));
+
+        Assert.Empty(link.History);
+        Assert.NotEmpty(link.Transactions);
+    }
+
+    [Fact]
+    public void ADriverCommandThatCannotBeSentSurfacesRatherThanBeingSwallowed()
+    {
+        var link = new ScriptedInstrumentLink { FailWrites = true };
+        var dut = new Hp8340B(link);
+
+        Assert.Throws<TimeoutException>(() => dut.SetCwGHz(10));
+    }
+
+    // --- The listen-only case, which has no readback to fall back on --------------------------
+
+    [Fact]
+    public void AFailedRelayCommandLeavesTheSwitchDriversStateUnknown()
+    {
+        // The worst combination on this bench: a write that failed to a device that cannot talk.
+        // The pads may or may not have moved and nothing can be asked, so anything depending on
+        // the attenuation is now depending on a guess.
+        var link = new ScriptedInstrumentLink();
+        var driver = new Hp11713A(link);
+
+        driver.SetRelays("A1B2");
+        Assert.True(driver.StateIsKnown);
+        Assert.Equal("A1B2", driver.LastRelaySetting);
+
+        link.FailWrites = true;
+        Assert.Throws<TimeoutException>(() => driver.SetRelays("A2B1"));
+
+        Assert.False(driver.StateIsKnown);
+        Assert.Null(driver.LastRelaySetting);
+    }
+
+    [Fact]
+    public void TheStaleSettingIsNotLeftStandingAsIfItWereStillTrue()
+    {
+        // The tempting alternative — keep the last good value — would be a lie: the failed
+        // command may well have moved the relays.
+        var link = new ScriptedInstrumentLink();
+        var driver = new Hp11713A(link);
+
+        driver.SetRelays("A1B2");
+        link.FailWrites = true;
+
+        Assert.Throws<TimeoutException>(() => driver.SetRelays("A2B1"));
+
+        Assert.DoesNotContain("A1B2", driver.Probe().Detail!);
+        Assert.Contains("FAILED", driver.Probe().Detail!);
+    }
+
+    [Fact]
+    public void ASuccessfulCommandAfterwardsRestoresConfidence()
+    {
+        var link = new ScriptedInstrumentLink { FailWrites = true };
+        var driver = new Hp11713A(link);
+
+        Assert.Throws<TimeoutException>(() => driver.SetRelays("A1B2"));
+        Assert.False(driver.StateIsKnown);
+
+        link.FailWrites = false;
+        driver.SetRelays("A1B2");
+
+        Assert.True(driver.StateIsKnown);
+        Assert.Contains("A1B2", driver.Probe().Detail!);
+    }
+}
