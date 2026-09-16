@@ -6,8 +6,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The setup catalogue is data, editable without a rebuild (D.4). -->
+    <!-- The setup catalogue and the routing map are data, editable without a rebuild (D.4). -->
     <None Update="Data\setups.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Data\routing.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

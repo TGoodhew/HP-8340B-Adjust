@@ -1,0 +1,112 @@
+{
+  // The routed bench: one physical build serving S1, S2, S3 and the detector leg of S4, with
+  // switch changes instead of re-cabling.
+  //
+  // ============================== READ THIS BEFORE TRUSTING IT ==============================
+  //
+  // The slot and channel numbers below are PLACEHOLDERS. They are decision D-11 and they cannot
+  // be read off the bus: the 3499A's SYSTem:CTYPE? returns "GP RELAY 44471" for every one of the
+  // 44471A/D, 44476A/B and 44477A, and its own guide says "you must physically check the modules
+  // to determine which one is present". So the map has to be built by looking at the mainframe
+  // and tracing the cables.
+  //
+  // `hp8340b route status` lists every leg with its slot, channels and frequency limit, and
+  // flags the ones still marked unverified.
+  //
+  // The switchModel field is what decides whether a leg may carry band 4, so getting it wrong is
+  // the one error here that produces a plausible wrong number rather than an obvious failure.
+  //
+  // WATCH THE BAND-3 EDGE. Band 3 runs 13.5 to 20.0 GHz, so an 18 GHz leg runs out 2 GHz before
+  // the top of it — an 18 GHz leg is NOT "everything except band 4". `route status` colours the
+  // limit accordingly and `RoutedLeg.Covers` is the thing to ask, not the switch model.
+  // ==========================================================================================
+
+  "dcLimitNote": "The 33311B/C are not DC-blocking. Nothing carrying DC goes through an RF leg — the DUT's 0-10 V sweep ramp and the detector's video output use the 44472A VHF legs (SV), not these.",
+  "powerRatingNote": "33311B/C average power rating is 1 W. The DUT unleveled at +20 dBm is 100 mW, so there is margin — but check before routing anything amplified.",
+
+  "sr": [
+    {
+      "id": "SR-A",
+      "name": "DUT RF OUTPUT to 8563E RF INPUT",
+      "switchModel": "33311C",
+      "slot": 1,
+      "channels": [ 100 ],
+      "cableLabels": [ "K1", "K2" ],
+      "campaign": "Any",
+      "note": "PLACEHOLDER slot/channel — D-11. The 26.5 GHz leg that carries spur and squegging scans in every band."
+    },
+    {
+      "id": "SR-B",
+      "name": "DUT RF OUTPUT to 8473C crystal detector",
+      "switchModel": "33311C",
+      "slot": 1,
+      "channels": [ 101 ],
+      "cableLabels": [ "K1", "K3" ],
+      "campaign": "Adjustment",
+      "note": "PLACEHOLDER slot/channel — D-11. The second 33311C, wired to the detector for adjustment campaigns. Swaps to SR-C for verification."
+    },
+    {
+      "id": "SR-C",
+      "name": "DUT RF OUTPUT to 8485A power sensor",
+      "switchModel": "33311C",
+      "slot": 1,
+      "channels": [ 102 ],
+      "cableLabels": [ "K1", "K4" ],
+      "campaign": "Verification",
+      "note": "PLACEHOLDER slot/channel — D-11. The same 33311C as SR-B, re-wired. Only one of SR-B and SR-C exists at a time."
+    },
+    {
+      "id": "SR-D",
+      "name": "DUT RF OUTPUT to 5351A counter",
+      "switchModel": "33311B",
+      "slot": 2,
+      "channels": [ 200 ],
+      "cableLabels": [ "K1", "K5" ],
+      "campaign": "Any",
+      "note": "PLACEHOLDER slot/channel — D-11. 18 GHz leg: the counter itself reaches 26.5 GHz but this leg does not, so bands 3 and 4 need direct cabling for 4-2."
+    },
+    {
+      "id": "SR-E",
+      "name": "DUT RF OUTPUT to 8481A power sensor (437B)",
+      "switchModel": "33311B",
+      "slot": 2,
+      "channels": [ 201 ],
+      "cableLabels": [ "K1", "K6" ],
+      "campaign": "Verification",
+      "note": "PLACEHOLDER slot/channel — D-11. 18 GHz leg, which matches the 8481A's own 18 GHz limit, so the leg costs nothing here."
+    }
+  ],
+
+  "sv": [
+    {
+      "id": "SV-A",
+      "name": "DUT rear SWEEP OUTPUT to DS1104Z CH2 (X axis)",
+      "switchModel": "44472A",
+      "slot": 3,
+      "channels": [ 300 ],
+      "cableLabels": [ "V1" ],
+      "campaign": "Any",
+      "note": "PLACEHOLDER slot/channel — D-11. 0-10 V ramp: DC, so it must use a VHF leg and not an RF one."
+    },
+    {
+      "id": "SV-B",
+      "name": "8473C detector video to DS1104Z CH1 (Y axis)",
+      "switchModel": "44472A",
+      "slot": 3,
+      "channels": [ 301 ],
+      "cableLabels": [ "V2" ],
+      "campaign": "Adjustment",
+      "note": "PLACEHOLDER slot/channel — D-11. The detector's 1.3 kohm source drives the scope's 1 Mohm input directly — NO 50 ohm feedthrough, see GEAR-MAP."
+    },
+    {
+      "id": "SV-C",
+      "name": "A24TP12 / A26TP3 test points to the DMM",
+      "switchModel": "44472A",
+      "slot": 3,
+      "channels": [ 302, 303 ],
+      "cableLabels": [ "V3", "V4" ],
+      "campaign": "Adjustment",
+      "note": "PLACEHOLDER slot/channel — D-11. Two banks: one picks the meter's HI, the other its LO, which is how the 432A's differential V_COMP - V_RF measurement gets a floating input."
+    }
+  ]
+}

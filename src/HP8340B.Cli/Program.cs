@@ -25,6 +25,17 @@ app.Configure(config =>
              .WithExample("setup", "show", "S4");
     });
 
+    config.AddBranch<RouteSettings>("route", route =>
+    {
+        route.SetDescription("Routed legs through the 3499A: what each carries and how high.");
+
+        route.AddCommand<RouteStatusCommand>("status")
+             .WithDescription("List every routed leg with its slot, channels and frequency limit.");
+
+        route.AddCommand<RouteShowCommand>("show")
+             .WithDescription("Show one leg in full, with its band coverage.");
+    });
+
     config.AddCommand<CodesCommand>("codes")
           .WithDescription("Show the 8340B HP-IB code table and which codes still need verifying.");
 });
