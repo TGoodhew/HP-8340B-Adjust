@@ -167,6 +167,10 @@ public static class SimulatedBench
         if (config.Model.Contains("11713A", StringComparison.OrdinalIgnoreCase))
             return new Hp11713A(link, config.Role);
 
+        // The 3499A gets its own stateful simulator so relay readback and cycle counts work.
+        if (config.Model.Contains("3499A", StringComparison.OrdinalIgnoreCase))
+            return new Agilent3499A(new SimulatedSwitchMatrix().CreateLink(resourceName), config.Role);
+
         if (config.Model.Contains("437B", StringComparison.OrdinalIgnoreCase))
             return new Hp437B(link, config.Role);
 
@@ -244,6 +248,9 @@ public static class InstrumentFactory
 
         if (config.Model.Contains("11713A", StringComparison.OrdinalIgnoreCase))
             return new Hp11713A(link, config.Role);
+
+        if (config.Model.Contains("3499A", StringComparison.OrdinalIgnoreCase))
+            return new Agilent3499A(link, config.Role);
 
         if (config.Model.Contains("437B", StringComparison.OrdinalIgnoreCase))
             return new Hp437B(link, config.Role);
