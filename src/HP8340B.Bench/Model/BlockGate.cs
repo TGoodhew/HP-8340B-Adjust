@@ -17,6 +17,19 @@ public sealed record CardAcknowledgement(
 /// <summary>
 /// The gate a measurement block has to pass before it starts (M0-19 and M0-20).
 ///
+/// <para><b>Why this one is allowed to be fatal, and when that stops being true.</b> A new check
+/// gets to block work only while nothing is already relying on the old behaviour being
+/// survivable. Nothing downstream of this gate has run yet, so a failed or un-runnable check can
+/// refuse outright and cost nobody anything.</para>
+///
+/// <para>That changes the first time a 5-14 run is signed off against a passing check. From then
+/// on there are results on record whose validity rests on this gate's current behaviour, and
+/// tightening it would retroactively invalidate work that is good. <b>Nothing in the code will
+/// announce that moment</b> — it is a decision somebody has to notice and make, not a state the
+/// software enters. The sister project on this bench already crossed that line before its
+/// equivalent check was written, which is why its version reports an unconfirmed result loudly
+/// instead of throwing.</para>
+///
 /// <para>Two things have to be true: somebody has said they made the connections, and the
 /// instruments agree that they did. Either alone is weak — an acknowledgement is a promise and a
 /// self-check without one means nobody looked at the card — so both are required and both are

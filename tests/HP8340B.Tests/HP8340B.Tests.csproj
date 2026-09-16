@@ -14,6 +14,7 @@
     <ProjectReference Include="..\..\src\HP8340B.Bench\HP8340B.Bench.csproj" />
     <ProjectReference Include="..\..\src\HP8340B.Instruments\HP8340B.Instruments.csproj" />
     <ProjectReference Include="..\..\src\HP8340B.Measurements\HP8340B.Measurements.csproj" />
+    <ProjectReference Include="..\..\src\HP8340B.Reports\HP8340B.Reports.csproj" />
   </ItemGroup>
 
   <ItemGroup>
