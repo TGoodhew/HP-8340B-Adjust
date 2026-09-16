@@ -30,6 +30,16 @@ public static class SimulatedBench
                 && c.StartsWith("ID?", StringComparison.OrdinalIgnoreCase))
                 return "HP3458A";
 
+            // The 437B answers ID with the format its manual gives on p. 3-40, and is otherwise
+            // a talker returning its reading. 0 dBm is the calibrator level.
+            if (model.Contains("437B", StringComparison.OrdinalIgnoreCase))
+            {
+                if (c.StartsWith("ID", StringComparison.OrdinalIgnoreCase))
+                    return "HEWLETT-PACKARD, 437B,, 1.0";
+
+                return "0.00";
+            }
+
             // The E4438C reports its reference over the bus, like the 8673B and unlike the
             // counter. EXT: this bench feeds everything from the Z3805A.
             if (model.Contains("E4438C", StringComparison.OrdinalIgnoreCase)
@@ -157,6 +167,9 @@ public static class SimulatedBench
         if (config.Model.Contains("11713A", StringComparison.OrdinalIgnoreCase))
             return new Hp11713A(link, config.Role);
 
+        if (config.Model.Contains("437B", StringComparison.OrdinalIgnoreCase))
+            return new Hp437B(link, config.Role);
+
         if (config.Model.Contains("8116A", StringComparison.OrdinalIgnoreCase))
             return new Hp8116A(link, config.Role);
 
@@ -231,6 +244,9 @@ public static class InstrumentFactory
 
         if (config.Model.Contains("11713A", StringComparison.OrdinalIgnoreCase))
             return new Hp11713A(link, config.Role);
+
+        if (config.Model.Contains("437B", StringComparison.OrdinalIgnoreCase))
+            return new Hp437B(link, config.Role);
 
         if (config.Model.Contains("8116A", StringComparison.OrdinalIgnoreCase))
             return new Hp8116A(link, config.Role);
