@@ -24,6 +24,12 @@ public static class StatusPoller
     public static readonly TimeSpan DefaultInterval = TimeSpan.FromMilliseconds(20);
 
     /// <summary>
+    /// How long the most recent wait actually took. Worth reading after a timeout: see the
+    /// remarks on <see cref="WaitFor"/> about the one case where it can exceed the budget.
+    /// </summary>
+    public static TimeSpan LastElapsed { get; private set; }
+
+    /// <summary>
     /// Polls <paramref name="link"/> until <paramref name="isReady"/> accepts the status byte, or
     /// <paramref name="timeout"/> elapses. Returns the accepted status byte, or null on timeout.
     /// </summary>
@@ -33,6 +39,22 @@ public static class StatusPoller
     /// the full timeout would hide the real fault.
     /// </param>
     /// <param name="abortMessage">Builds the exception message when <paramref name="abort"/> fires.</param>
+    /// <remarks>
+    /// <para><b>The deadline bounds the whole wait, not just the gaps between polls.</b> That
+    /// distinction matters because <see cref="IInstrumentLink.SerialPoll"/> blocks: on a wedged
+    /// bus it does not return until the instrument's own VISA timeout expires, and this project
+    /// configures 20 s for the DUT and the 8902A. A loop that only checked the clock between
+    /// polls would let a 5 s settle-wait run to 25 s — and, worse, report nothing unusual, so the
+    /// overrun would show up as a mysteriously slow measurement rather than as a fault.
+    /// </para>
+    /// <para>So before starting each poll after the first, this checks whether there is time for
+    /// one, using how long the last poll actually took. The first poll is always made, because a
+    /// caller asking "are you ready now?" deserves an answer; if <i>that</i> one blocks for longer
+    /// than the budget the wait does overrun, and nothing short of a cancellable transport can
+    /// prevent it. <see cref="LastElapsed"/> records what really happened either way.</para>
+    /// <para>Found by the HP-Attenuator session, which hit the same shape of bug: a 30 s budget
+    /// that overran to 134 s because the deadline was only enforced between blocking reads.</para>
+    /// </remarks>
     public static byte? WaitFor(
         IInstrumentLink link,
         Func<byte, bool> isReady,
@@ -46,27 +68,46 @@ public static class StatusPoller
         ArgumentNullException.ThrowIfNull(isReady);
 
         var gap = interval ?? DefaultInterval;
-        var deadline = DateTime.UtcNow + timeout;
+        var started = DateTime.UtcNow;
+        var deadline = started + timeout;
+        var longestPoll = TimeSpan.Zero;
 
-        while (true)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
 
-            var status = link.SerialPoll();
+                var pollStarted = DateTime.UtcNow;
+                var status = link.SerialPoll();
+                var pollTook = DateTime.UtcNow - pollStarted;
 
-            if (abort?.Invoke(status) == true)
-                throw new InvalidOperationException(
-                    abortMessage?.Invoke(status)
-                    ?? $"{link.ResourceName} reported an error condition: status 0x{status:X2}.");
+                if (pollTook > longestPoll) longestPoll = pollTook;
 
-            if (isReady(status)) return status;
+                if (abort?.Invoke(status) == true)
+                    throw new InvalidOperationException(
+                        abortMessage?.Invoke(status)
+                        ?? $"{link.ResourceName} reported an error condition: status 0x{status:X2}.");
 
-            // Check the deadline AFTER polling, so a zero timeout still performs one poll. A
-            // simulator is always ready, and a caller asking "are you ready now?" should get an
-            // answer rather than an immediate timeout.
-            if (DateTime.UtcNow >= deadline) return null;
+                if (isReady(status)) return status;
 
-            Thread.Sleep(gap);
+                // Check the deadline AFTER polling, so a zero timeout still performs one poll. A
+                // simulator is always ready, and a caller asking "are you ready now?" should get
+                // an answer rather than an immediate timeout.
+                var now = DateTime.UtcNow;
+                if (now >= deadline) return null;
+
+                // Do not START a poll that cannot finish inside the budget. Without this the
+                // deadline only bounds the gaps between polls, and a blocking SerialPoll on a
+                // wedged bus overruns it by a whole instrument timeout.
+                if (now + gap + longestPoll > deadline) return null;
+
+                Thread.Sleep(gap);
+            }
+        }
+        finally
+        {
+            LastElapsed = DateTime.UtcNow - started;
         }
     }
 }

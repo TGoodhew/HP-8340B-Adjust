@@ -172,3 +172,103 @@ public class TransportTests
         Assert.True(dut.WaitEndOfSweep(TimeSpan.FromMilliseconds(50)));
     }
 }
+
+/// <summary>
+/// The settle-wait's deadline, and the one case where it cannot hold.
+///
+/// <para>Found by the HP-Attenuator session working on the same bench: a deadline enforced only
+/// BETWEEN blocking reads does not bound the wait at all. Their 30 s budget overran to 134 s.
+/// This project had the same shape — SerialPoll blocks for up to the instrument's VISA timeout,
+/// which is 20 s for the DUT and the 8902A.</para>
+/// </summary>
+public class StatusPollerDeadlineTests
+{
+    /// <summary>A link whose serial poll takes real time and never reports ready.</summary>
+    private sealed class SlowLink(TimeSpan pollTakes) : IInstrumentLink
+    {
+        public string ResourceName => "SIM::slow::INSTR";
+        public bool IsSimulated => true;
+        public TimeSpan Timeout { get; set; }
+        public IReadOnlyList<string> History => Array.Empty<string>();
+        public IReadOnlyList<InstrumentTransaction> Transactions => Array.Empty<InstrumentTransaction>();
+
+        public int Polls { get; private set; }
+
+        public void Clear() { }
+        public void Write(string command) { }
+        public string Read() => string.Empty;
+        public string Query(string command) => string.Empty;
+        public byte[] ReadBytes(int count) => new byte[count];
+        public void WriteBytes(byte[] data) { }
+
+        public byte SerialPoll()
+        {
+            Polls++;
+            Thread.Sleep(pollTakes);
+            return 0;                     // never ready
+        }
+
+        public void Dispose() { }
+    }
+
+    [Fact]
+    public void ASlowPollDoesNotLetTheWaitOverrunItsBudget()
+    {
+        // 120 ms budget, and each poll takes 50 ms. Two polls fit; a third would not, so the
+        // wait must stop rather than starting it. Before this was fixed the loop only checked
+        // the clock between polls and would happily begin one that ran well past the deadline.
+        var link = new SlowLink(TimeSpan.FromMilliseconds(50));
+        var started = DateTime.UtcNow;
+
+        var result = StatusPoller.WaitFor(
+            link,
+            isReady: _ => false,
+            timeout: TimeSpan.FromMilliseconds(120),
+            interval: TimeSpan.FromMilliseconds(5));
+
+        var elapsed = DateTime.UtcNow - started;
+
+        Assert.Null(result);
+
+        // Generous on a loaded machine, but far tighter than the un-fixed behaviour, which would
+        // have started a third 50 ms poll after the 120 ms mark.
+        Assert.True(elapsed < TimeSpan.FromMilliseconds(400),
+            $"The wait took {elapsed.TotalMilliseconds:0} ms against a 120 ms budget.");
+    }
+
+    [Fact]
+    public void TheFirstPollIsAlwaysMadeEvenWithNoBudget()
+    {
+        // A caller asking "are you ready now?" deserves an answer. This is the documented case
+        // where the wait can still overrun, and it is deliberate.
+        var link = new SlowLink(TimeSpan.FromMilliseconds(30));
+
+        StatusPoller.WaitFor(link, isReady: _ => false, timeout: TimeSpan.Zero);
+
+        Assert.Equal(1, link.Polls);
+    }
+
+    [Fact]
+    public void HowLongItActuallyTookIsRecorded()
+    {
+        // So an overrun shows up as a fact rather than as a mysteriously slow measurement.
+        var link = new SlowLink(TimeSpan.FromMilliseconds(30));
+
+        StatusPoller.WaitFor(link, isReady: _ => false, timeout: TimeSpan.Zero);
+
+        Assert.True(StatusPoller.LastElapsed >= TimeSpan.FromMilliseconds(20),
+            $"LastElapsed was {StatusPoller.LastElapsed.TotalMilliseconds:0} ms.");
+    }
+
+    [Fact]
+    public void AFastReadyPollStillReturnsImmediately()
+    {
+        // The fix must not cost anything in the normal case.
+        var link = SimulatedBench.LinkFor("HP 8340B", "SIM::dut::INSTR");
+
+        var result = StatusPoller.WaitFor(
+            link, isReady: s => (s & 0x08) != 0, timeout: TimeSpan.FromSeconds(5));
+
+        Assert.NotNull(result);
+    }
+}
