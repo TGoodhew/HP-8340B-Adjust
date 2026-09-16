@@ -43,6 +43,10 @@ public sealed class BlockGate
     /// <summary>
     /// How long an acknowledgement stays good. Cables get moved; an acknowledgement from three
     /// hours ago is not evidence about the bench as it is now.
+    ///
+    /// <para>PROVISIONAL: never checked against an instrument. Two hours is a guess at how long a
+    /// bench stays untouched during a campaign, not a measured figure. If it turns out to
+    /// interrupt real work it should be lengthened deliberately rather than quietly.</para>
     /// </summary>
     public TimeSpan AcknowledgementValidFor { get; set; } = TimeSpan.FromHours(2);
 

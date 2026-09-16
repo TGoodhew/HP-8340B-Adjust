@@ -20,6 +20,10 @@ public static class DetectorCalibrator
     /// Residual above which the calibration is called bad. A detector curve is smooth, so a fit
     /// that cannot get inside a few tenths of a dB is telling you something is wrong with the
     /// measurement, not with the polynomial.
+    ///
+    /// <para>PROVISIONAL: never checked against an instrument. The simulated detector fits to
+    /// 0.006 dB, so 0.3 is fifty times the model's own residual — but a real detector's noise and
+    /// the DUT's own level accuracy both land in this number, and neither has been measured.</para>
     /// </summary>
     public const double AcceptableRmsResidualDb = 0.3;
 

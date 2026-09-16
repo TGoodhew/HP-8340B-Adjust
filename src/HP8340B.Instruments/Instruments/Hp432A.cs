@@ -379,6 +379,10 @@ public sealed class Hp432A
     /// How long a zero stays good before <see cref="ReadSubstitutionWatts"/> insists on a new one.
     /// Thermistor bridges drift with ambient temperature, and the whole accuracy claim rests on
     /// the zero being recent.
+    ///
+    /// <para>PROVISIONAL: never checked against an instrument. Ten minutes is a guess. The right
+    /// figure is whatever the 432A's zero actually drifts by in this room, which is measurable —
+    /// zero it, wait, and read the drift — and has not been measured.</para>
     /// </summary>
     public TimeSpan ZeroValidFor { get; set; } = TimeSpan.FromMinutes(10);
 

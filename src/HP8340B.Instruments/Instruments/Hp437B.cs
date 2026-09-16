@@ -159,7 +159,12 @@ public sealed class Hp437B : IInstrument
     /// <summary>Characterised pad in front of the sensor, dB. Declared in config, added back in.</summary>
     public double PadDb { get; set; }
 
-    /// <summary>Settle time after zeroing. The 437B's zero routine takes several seconds.</summary>
+    /// <summary>
+    /// Settle time after zeroing. The 437B's zero routine takes several seconds.
+    ///
+    /// <para>PROVISIONAL: never checked against an instrument. The manual does not give a figure
+    /// and ten seconds is generous rather than measured.</para>
+    /// </summary>
     public TimeSpan ZeroSettle { get; set; } = TimeSpan.FromSeconds(10);
 
     /// <summary>Settle time after calibrating.</summary>

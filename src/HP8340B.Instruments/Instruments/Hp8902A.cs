@@ -41,7 +41,10 @@ public sealed class Hp8902A : IInstrument
     public string Model => "HP 8902A";
     public IInstrumentLink Link => _link;
 
-    /// <summary>Settle time after zeroing. Carried from HP-Attenuator's proven value.</summary>
+    /// <summary>
+    /// Settle time after zeroing. Carried from HP-Attenuator's hardware-proven value, so unlike
+    /// most timings in this project this one HAS met an instrument — just not through this code.
+    /// </summary>
     public TimeSpan ZeroSettle { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>Settle time after switching the calibrator on.</summary>

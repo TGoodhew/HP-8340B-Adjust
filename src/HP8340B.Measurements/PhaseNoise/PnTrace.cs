@@ -183,7 +183,15 @@ public sealed record PnJudgement(
 /// </summary>
 public static class PnPassRule
 {
-    /// <summary>How far below the composite a baseline has to be before it can be subtracted.</summary>
+    /// <summary>
+    /// How far below the composite a baseline has to be before it can be subtracted.
+    ///
+    /// <para>This one is NOT provisional in the same way as the tolerances elsewhere: 10 dB is a
+    /// consequence of the arithmetic rather than a guess. A contribution 10 dB down is 9% of the
+    /// power, so removing it moves the answer by 0.46 dB and leaves the baseline's own uncertainty
+    /// contributing a tenth of what it would at parity. Tightening it would let the subtraction
+    /// amplify baseline error faster than it removes composite error.</para>
+    /// </summary>
     public const double BaselineMarginDb = 10.0;
 
     /// <summary>Judges one offset.</summary>

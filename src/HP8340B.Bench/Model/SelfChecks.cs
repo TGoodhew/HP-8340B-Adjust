@@ -83,10 +83,22 @@ public sealed class SelfCheckContext
 /// </summary>
 public static class SelfChecks
 {
-    /// <summary>How close a level check has to be, in dB. Generous: this proves cabling, not accuracy.</summary>
+    /// <summary>
+    /// How close a level check has to be, in dB. Generous: this proves cabling, not accuracy.
+    ///
+    /// <para>PROVISIONAL: never checked against an instrument. Chosen to be loose enough that
+    /// cable loss and a mis-declared pad are distinguishable, and tight enough that a wrong cable
+    /// is not. The real figure depends on what the bench's cables actually lose.</para>
+    /// </summary>
     public const double LevelToleranceDb = 2.0;
 
-    /// <summary>How close a frequency check has to be, as a fraction.</summary>
+    /// <summary>
+    /// How close a frequency check has to be, as a fraction.
+    ///
+    /// <para>PROVISIONAL: never checked against an instrument. A part in a million is far inside
+    /// what two Z3805A-locked instruments should manage, but nobody has measured what they do
+    /// manage.</para>
+    /// </summary>
     public const double FrequencyTolerance = 1e-6;
 
     private static readonly Dictionary<string, Func<SelfCheckContext, (SelfCheckStatus, string)>> Registry =
