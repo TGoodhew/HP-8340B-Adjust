@@ -9,6 +9,17 @@ public enum SpurSeverity
     /// <summary>Below the warning threshold. Recorded, not acted on.</summary>
     None,
 
+    /// <summary>
+    /// Real, and <b>expected</b>: band-1 squegging at maximum unleveled power.
+    ///
+    /// <para>The manual is explicit that this is a function of SYTM input power, occurs only when
+    /// maximum unleveled power is requested, and <b>cannot be adjusted out</b> — there is no A24
+    /// pot for band 1. Reporting it as a fault would send somebody hunting for a control that does
+    /// not exist, which is why it has a severity of its own rather than being folded into Warn or
+    /// silently dropped.</para>
+    /// </summary>
+    Expected,
+
     /// <summary>Above the warning threshold — worth looking at.</summary>
     Warn,
 
@@ -37,13 +48,25 @@ public sealed record SquegFinding(
     string? Pot,
     double AnalyzerNoiseFloorDbc)
 {
+    /// <summary>True if this needs somebody to turn something.</summary>
+    public bool IsActionable => Severity is SpurSeverity.Warn or SpurSeverity.Strong;
+
     /// <summary>A line naming the frequency, the response and what to turn.</summary>
-    public string Describe() =>
-        $"{CarrierHz / 1e9:0.000} GHz: {Dbc:0.0} dBc at {OffsetHz / 1e6:+0.0;-0.0} MHz "
-        + $"[{Severity}]"
-        + (Pot is null
+    public string Describe()
+    {
+        var head = $"{CarrierHz / 1e9:0.000} GHz: {Dbc:0.0} dBc at "
+                   + $"{OffsetHz / 1e6:+0.0;-0.0} MHz [{Severity}]";
+
+        if (Severity == SpurSeverity.Expected)
+            return head + " — EXPECTED. Band-1 squegging is a function of SYTM input power and "
+                        + "occurs only at maximum unleveled power. The manual says it cannot be "
+                        + "adjusted out, and there is no A24 pot for band 1. Not a fault; do not "
+                        + "go looking for a control.";
+
+        return head + (Pot is null
             ? " — no SRD bias pot in this band."
             : $" — turn {Pot} counter-clockwise.");
+    }
 }
 
 /// <summary>What one scan found.</summary>
@@ -61,9 +84,20 @@ public sealed record SquegScanResult(
     public IReadOnlyList<SquegFinding> Strong =>
         Findings.Where(f => f.Severity == SpurSeverity.Strong).ToList();
 
+    /// <summary>Findings that need somebody to act. Excludes the expected band-1 case.</summary>
+    public IReadOnlyList<SquegFinding> Actionable =>
+        Findings.Where(f => f.IsActionable).ToList();
+
+    /// <summary>
+    /// Findings that are real and expected — band 1 at maximum unleveled power. Reported so the
+    /// record is complete, kept out of <see cref="Actionable"/> so nobody chases them.
+    /// </summary>
+    public IReadOnlyList<SquegFinding> Expected =>
+        Findings.Where(f => f.Severity == SpurSeverity.Expected).ToList();
+
     /// <summary>The pots implicated, in the order they should be worked.</summary>
     public IReadOnlyList<string> PotsToAdjust =>
-        Findings.Where(f => f.Severity != SpurSeverity.None && f.Pot is not null)
+        Findings.Where(f => f.IsActionable && f.Pot is not null)
             .Select(f => f.Pot!)
             .Distinct()
             .OrderBy(p => p, StringComparer.Ordinal)
@@ -81,10 +115,12 @@ public sealed record SquegScanResult(
 /// response is probably a mixing product", <b>does not apply here</b>. A response found by this
 /// scan is on the DUT's output.</para>
 ///
-/// <para><b>Band 1 is not scanned and that is deliberate.</b> Its squegging is a function of SYTM
-/// input power, appears only at maximum unleveled power, and cannot be adjusted out — there is no
-/// A24 pot for it. Scanning it would produce findings naming no pot, which reads as a fault
-/// nobody can fix. See M1-08.</para>
+/// <para><b>Band 1 is not in the default set, and is not refused either.</b> Its squegging is a
+/// function of SYTM input power, appears only at maximum unleveled power, and cannot be adjusted
+/// out — there is no A24 pot for it. So a response there is classified
+/// <see cref="SpurSeverity.Expected"/> rather than reported as a fault: real, recorded, and kept
+/// out of the list of things to go and turn. Band 0 <i>is</i> refused, because being heterodyne it
+/// has no SRD and no multiplication and cannot squeg at all. See M1-08.</para>
 /// </summary>
 public static class SquegScanner
 {
@@ -140,18 +176,35 @@ public static class SquegScanner
 
         foreach (var id in bands ?? ScannedBands)
         {
-            if (id is BandId.Band0 or BandId.Band1)
+            // Band 0 is heterodyne — no SRD, no multiplication, nothing that can squeg — so
+            // scanning it is meaningless rather than merely unhelpful.
+            if (id is BandId.Band0)
                 throw new ArgumentException(
-                    $"Band {(int)id} is not part of the unleveled squegging test. Steps 70-80 walk "
-                    + "bands 2, 3 and 4. Band 1's squegging is a function of SYTM input power, "
-                    + "happens only at maximum unleveled power and cannot be adjusted out — "
-                    + "scanning it would produce findings naming no pot. See M1-08.",
+                    "Band 0 is heterodyne: the YO is mixed with the A8 oscillator, so there is no "
+                    + "step recovery diode and no multiplication to squeg. Steps 70-80 walk bands "
+                    + "2, 3 and 4.",
                     nameof(bands));
+
+            // Band 1 IS scannable, and is not in the default set. Its squegging is real but
+            // expected and unadjustable, so it is classified as Expected rather than refused —
+            // see M1-08 and SpurSeverity.Expected.
 
             var band = Bands.Get(id);
 
-            for (var ghz = band.StartGHz; ghz < band.StopGHz; ghz += stepHz / 1e9)
-                points.Add(Math.Round(ghz * 1e9));
+            // Indexed, not accumulated. Adding 0.1 GHz repeatedly from 2.3 drifts far enough that
+            // the last point of band 1 rounds to exactly 7.000 GHz -- which belongs to band 2, and
+            // would be handed band 2's pot. The loop condition never sees it because the drift is
+            // in the other direction from the comparison.
+            var steps = (int)Math.Ceiling((band.StopGHz - band.StartGHz) * 1e9 / stepHz);
+
+            for (var i = 0; i < steps; i++)
+            {
+                var hz = Math.Round(band.StartGHz * 1e9 + i * stepHz);
+
+                // Belt and braces: a point must lie in the band that generated it, or the pot
+                // lookup would be wrong.
+                if (Bands.ForFrequency(hz / 1e9)?.Id == id) points.Add(hz);
+            }
         }
 
         return points;
@@ -173,6 +226,41 @@ public static class SquegScanner
         if (dbc >= WarnDbc) return SpurSeverity.Warn;
 
         return SpurSeverity.None;
+    }
+
+    /// <summary>
+    /// Classifies a response knowing which band it is in and how hard the DUT is being driven.
+    ///
+    /// <para>Band 1 is the special case (M1-08). Its squegging is a function of SYTM input power
+    /// and occurs only when maximum unleveled power is asked for, so a response there is
+    /// <see cref="SpurSeverity.Expected"/> rather than a fault — the manual says it cannot be
+    /// adjusted out, and <see cref="Bands.UnleveledPotFor"/> returns null for it because there is
+    /// no control. <b>Below</b> maximum specified leveled power band 1 should not squeg at all, so
+    /// a response there is classified normally and is worth knowing about.</para>
+    /// </summary>
+    /// <param name="carrierHz">Where the DUT is set.</param>
+    /// <param name="requestedDbm">What it was asked for.</param>
+    /// <param name="option">Output option, which sets the Table 4-9 leveled limits.</param>
+    /// <param name="dbc">The response level.</param>
+    /// <param name="noiseFloorDbc">The analyzer's floor here.</param>
+    public static SpurSeverity ClassifyInBand(
+        double carrierHz,
+        double requestedDbm,
+        InstrumentOption option,
+        double dbc,
+        double noiseFloorDbc)
+    {
+        var plain = Classify(dbc, noiseFloorDbc);
+
+        if (plain == SpurSeverity.None) return plain;
+
+        var band = Bands.ForFrequency(carrierHz / 1e9);
+        if (band?.Id != BandId.Band1) return plain;
+
+        // Above maximum specified leveled power, band 1 is doing what the manual says it does.
+        var maxSpecified = MaxLeveledPower.ForFrequency(option, carrierHz / 1e9);
+
+        return requestedDbm > maxSpecified ? SpurSeverity.Expected : plain;
     }
 
     /// <summary>
@@ -215,9 +303,16 @@ public static class SquegScanner
     /// against the M0-12 model and does not have to own the instruments.
     /// </param>
     /// <param name="cancellationToken">Stops a long scan.</param>
+    /// <param name="requestedDbm">
+    /// What the DUT is being asked for. Needed because band 1's squegging is only expected at
+    /// maximum unleveled power — see <see cref="ClassifyInBand"/>.
+    /// </param>
+    /// <param name="option">Output option, for the Table 4-9 leveled limits.</param>
     public static SquegScanResult Scan(
         IReadOnlyList<double> points,
         Func<double, (IReadOnlyList<(double OffsetHz, double Dbc)> Responses, double NoiseFloorDbc)> measure,
+        double requestedDbm = 20.0,
+        InstrumentOption option = InstrumentOption.Standard,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(points);
@@ -236,7 +331,7 @@ public static class SquegScanner
                 if (IsCarrier(offsetHz)) continue;
                 if (IsHarmonicallyRelated(carrierHz, offsetHz)) continue;
 
-                var severity = Classify(dbc, floor);
+                var severity = ClassifyInBand(carrierHz, requestedDbm, option, dbc, floor);
                 if (severity == SpurSeverity.None) continue;
 
                 findings.Add(new SquegFinding(
@@ -254,7 +349,10 @@ public static class SquegScanner
             TraceabilityClass.Spec,
             findings.Count == 0
                 ? $"No responses above {WarnDbc:0.#} dBc across {points.Count} points."
-                : null);
+                : findings.All(f => f.Severity == SpurSeverity.Expected)
+                    ? $"{findings.Count} response(s), all of them the expected band-1 case at "
+                      + "maximum unleveled power. Nothing to adjust."
+                    : null);
     }
 
     /// <summary>

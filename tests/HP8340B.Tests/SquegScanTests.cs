@@ -58,16 +58,24 @@ public class SquegScanTests
         Assert.True(fine.Count > coarse.Count);
     }
 
-    [Theory]
-    [InlineData(BandId.Band0)]
-    [InlineData(BandId.Band1)]
-    public void BandsWithNoSrdPotAreRefusedRatherThanScanned(BandId band)
+    [Fact]
+    public void BandZeroCannotSquegAtAllSoScanningItIsRefused()
     {
-        // Scanning band 1 would produce findings naming no pot, which reads as a fault nobody can
-        // fix. Its squegging is a function of SYTM input power and is not adjustable (M1-08).
-        var ex = Assert.Throws<ArgumentException>(() => SquegScanner.ScanPoints([band]));
+        // Heterodyne: the YO is mixed with the A8 oscillator, so there is no step recovery diode
+        // and no multiplication. Scanning it is meaningless rather than merely unhelpful.
+        var ex = Assert.Throws<ArgumentException>(() => SquegScanner.ScanPoints([BandId.Band0]));
 
-        Assert.Contains("M1-08", ex.Message);
+        Assert.Contains("heterodyne", ex.Message);
+    }
+
+    [Fact]
+    public void BandOneIsScannableButNotInTheDefaultSet()
+    {
+        // It is not part of steps 70-80, but refusing it outright would be wrong: its squegging is
+        // real, just expected and unadjustable. Scanning it deliberately gives the right answer
+        // rather than an error (M1-08).
+        Assert.DoesNotContain(BandId.Band1, SquegScanner.ScannedBands);
+        Assert.NotEmpty(SquegScanner.ScanPoints([BandId.Band1]));
     }
 
     // --- Classification ----------------------------------------------------------------------
@@ -211,7 +219,8 @@ public class SquegScanTests
         cts.Cancel();
 
         Assert.Throws<OperationCanceledException>(() => SquegScanner.Scan(
-            SquegScanner.ScanPoints(), Measuring(new SimulatedSweeper()), cts.Token));
+            SquegScanner.ScanPoints(), Measuring(new SimulatedSweeper()),
+            cancellationToken: cts.Token));
     }
 }
 
@@ -382,5 +391,161 @@ public class MonotonicityTests
             });
 
         Assert.Equal(2, results.Count);
+    }
+}
+
+/// <summary>
+/// M1-08: band-1 squegging is real, expected, and not adjustable.
+///
+/// <para>The manual is explicit — it is a function of SYTM input power, occurs only at maximum
+/// unleveled power, and cannot be adjusted out. Without this the unleveled scanner would report
+/// band 1 as failing every time and send somebody hunting for a pot that does not exist.</para>
+/// </summary>
+public class BandOneSqueggingTests
+{
+    private static Func<double, (IReadOnlyList<(double, double)>, double)> Responses(double dbc) =>
+        _ => ([(60e6, dbc)], -70.0);
+
+    [Fact]
+    public void BandOneAboveMaximumSpecifiedPowerIsExpectedNotAFault()
+    {
+        // Band 1's Standard-option limit is +12 dBm, so +20 dBm is well past it.
+        var severity = SquegScanner.ClassifyInBand(
+            carrierHz: 5e9, requestedDbm: 20, InstrumentOption.Standard,
+            dbc: -20, noiseFloorDbc: -70);
+
+        Assert.Equal(SpurSeverity.Expected, severity);
+    }
+
+    [Fact]
+    public void BandOneAtOrBelowMaximumSpecifiedPowerIsStillWorthKnowingAbout()
+    {
+        // The manual says it only happens at maximum UNLEVELED power. Below the specified leveled
+        // limit it should not squeg at all, so a response there is a real finding — even though
+        // there is still no pot to turn.
+        var severity = SquegScanner.ClassifyInBand(
+            carrierHz: 5e9, requestedDbm: 5, InstrumentOption.Standard,
+            dbc: -20, noiseFloorDbc: -70);
+
+        Assert.Equal(SpurSeverity.Strong, severity);
+    }
+
+    [Fact]
+    public void TheMultiplyingBandsAreNotGivenTheBandOneExcuse()
+    {
+        // The exemption is band 1's alone. Band 2 at +20 dBm is exactly what steps 70-80 test.
+        var severity = SquegScanner.ClassifyInBand(
+            carrierHz: 8e9, requestedDbm: 20, InstrumentOption.Standard,
+            dbc: -20, noiseFloorDbc: -70);
+
+        Assert.Equal(SpurSeverity.Strong, severity);
+    }
+
+    [Fact]
+    public void AnExpectedFindingExplainsItselfAndNamesNoPot()
+    {
+        var result = SquegScanner.Scan(
+            [5e9], Responses(-20), requestedDbm: 20, option: InstrumentOption.Standard);
+
+        var finding = Assert.Single(result.Findings);
+
+        Assert.Equal(SpurSeverity.Expected, finding.Severity);
+        Assert.Null(finding.Pot);
+        Assert.Contains("EXPECTED", finding.Describe());
+        Assert.Contains("cannot be adjusted out", finding.Describe());
+        Assert.Contains("do not go looking for a control", finding.Describe());
+    }
+
+    [Fact]
+    public void AnExpectedFindingIsRecordedButNotActionable()
+    {
+        // Reported so the record is complete; kept out of the work list so nobody chases it.
+        var result = SquegScanner.Scan(
+            [5e9], Responses(-20), requestedDbm: 20, option: InstrumentOption.Standard);
+
+        Assert.Single(result.Expected);
+        Assert.Empty(result.Actionable);
+        Assert.Empty(result.PotsToAdjust);
+    }
+
+    [Fact]
+    public void AScanFindingOnlyTheExpectedCaseSaysThereIsNothingToAdjust()
+    {
+        var result = SquegScanner.Scan(
+            SquegScanner.ScanPoints([BandId.Band1]), Responses(-20),
+            requestedDbm: 20, option: InstrumentOption.Standard);
+
+        Assert.NotEmpty(result.Findings);
+        Assert.Contains("Nothing to adjust", result.Note!);
+    }
+
+    [Fact]
+    public void TheOptionMovesTheThresholdBecauseTable49Does()
+    {
+        // Opt001's band-1 limit is +13 dBm against Standard's +12, so a request of +12.5 dBm is
+        // above the limit on one and below it on the other.
+        var standard = SquegScanner.ClassifyInBand(
+            5e9, 12.5, InstrumentOption.Standard, -20, -70);
+
+        var opt001 = SquegScanner.ClassifyInBand(
+            5e9, 12.5, InstrumentOption.Opt001, -20, -70);
+
+        Assert.Equal(SpurSeverity.Expected, standard);
+        Assert.Equal(SpurSeverity.Strong, opt001);
+    }
+
+    [Fact]
+    public void NeitherPotMapOffersAControlForBandOne()
+    {
+        // The reason the whole exemption exists, and it comes from the verified map rather than
+        // being restated here.
+        Assert.Null(Bands.UnleveledPotFor(5.0));
+        Assert.Null(Bands.LeveledPotFor(5.0));
+    }
+}
+
+/// <summary>
+/// The scan points themselves. Found by a band-1 test that failed for a reason nothing to do with
+/// band 1.
+/// </summary>
+public class ScanPointBoundaryTests
+{
+    [Theory]
+    [InlineData(BandId.Band1)]
+    [InlineData(BandId.Band2)]
+    [InlineData(BandId.Band3)]
+    [InlineData(BandId.Band4)]
+    public void EveryPointLiesInTheBandThatGeneratedIt(BandId band)
+    {
+        // Accumulating 0.1 GHz from 2.3 drifts enough that the last point of band 1 rounded to
+        // exactly 7.000 GHz, which is band 2's first frequency -- so it would have been handed
+        // band 2's pot. The loop condition never caught it because the drift went the other way
+        // from the comparison.
+        foreach (var hz in SquegScanner.ScanPoints([band]))
+        {
+            var actual = Bands.ForFrequency(hz / 1e9);
+
+            Assert.NotNull(actual);
+            Assert.True(actual!.Id == band,
+                $"{hz / 1e9:0.000} GHz was generated for band {(int)band} but belongs to "
+                + $"band {(int)actual.Id}.");
+        }
+    }
+
+    [Fact]
+    public void TheLastPointOfABandIsBelowTheNextBandsEdge()
+    {
+        var band1 = SquegScanner.ScanPoints([BandId.Band1]);
+
+        Assert.True(band1[^1] < 7e9, $"Last band-1 point was {band1[^1] / 1e9:0.000} GHz.");
+    }
+
+    [Fact]
+    public void PointsAreStillEvenlySpacedAndStartAtTheBandEdge()
+    {
+        var points = SquegScanner.ScanPoints([BandId.Band2]);
+
+        Assert.Equal(7e9, points[0]);
+        Assert.Equal(100e6, points[1] - points[0]);
     }
 }
