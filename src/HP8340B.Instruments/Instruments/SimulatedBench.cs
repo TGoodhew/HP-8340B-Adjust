@@ -30,6 +30,11 @@ public static class SimulatedBench
                 && c.StartsWith("ID?", StringComparison.OrdinalIgnoreCase))
                 return "HP3458A";
 
+            // The 8903B is a talker: a bare read returns the measurement. 5 mV stands in for a
+            // level well below a stored reference, which is what step 48 looks for.
+            if (model.Contains("8903B", StringComparison.OrdinalIgnoreCase))
+                return "5.0000E-3";
+
             // The 437B answers ID with the format its manual gives on p. 3-40, and is otherwise
             // a talker returning its reading. 0 dBm is the calibrator level.
             if (model.Contains("437B", StringComparison.OrdinalIgnoreCase))
@@ -171,6 +176,9 @@ public static class SimulatedBench
         if (config.Model.Contains("3499A", StringComparison.OrdinalIgnoreCase))
             return new Agilent3499A(new SimulatedSwitchMatrix().CreateLink(resourceName), config.Role);
 
+        if (config.Model.Contains("8903B", StringComparison.OrdinalIgnoreCase))
+            return new Hp8903B(link, config.Role);
+
         if (config.Model.Contains("437B", StringComparison.OrdinalIgnoreCase))
             return new Hp437B(link, config.Role);
 
@@ -251,6 +259,9 @@ public static class InstrumentFactory
 
         if (config.Model.Contains("3499A", StringComparison.OrdinalIgnoreCase))
             return new Agilent3499A(link, config.Role);
+
+        if (config.Model.Contains("8903B", StringComparison.OrdinalIgnoreCase))
+            return new Hp8903B(link, config.Role);
 
         if (config.Model.Contains("437B", StringComparison.OrdinalIgnoreCase))
             return new Hp437B(link, config.Role);
