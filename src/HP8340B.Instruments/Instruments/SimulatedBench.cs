@@ -30,6 +30,12 @@ public static class SimulatedBench
                 && c.StartsWith("ID?", StringComparison.OrdinalIgnoreCase))
                 return "HP3458A";
 
+            // The E4438C reports its reference over the bus, like the 8673B and unlike the
+            // counter. EXT: this bench feeds everything from the Z3805A.
+            if (model.Contains("E4438C", StringComparison.OrdinalIgnoreCase)
+                && c.StartsWith(":SOURce:ROSCillator", StringComparison.OrdinalIgnoreCase))
+                return "EXT";
+
             // The 34401A and DM3058 are SCPI: READ? and :MEASure both return a reading.
             if (model.Contains("34401A", StringComparison.OrdinalIgnoreCase)
                 || model.Contains("DM3058", StringComparison.OrdinalIgnoreCase))
@@ -151,6 +157,15 @@ public static class SimulatedBench
         if (config.Model.Contains("11713A", StringComparison.OrdinalIgnoreCase))
             return new Hp11713A(link, config.Role);
 
+        if (config.Model.Contains("8116A", StringComparison.OrdinalIgnoreCase))
+            return new Hp8116A(link, config.Role);
+
+        if (config.Model.Contains("DG1032Z", StringComparison.OrdinalIgnoreCase))
+            return new RigolDg1032Z(link, config.Role);
+
+        if (config.Model.Contains("E4438C", StringComparison.OrdinalIgnoreCase))
+            return new AgilentE4438C(link, config.Role);
+
         // The 8673B gets its own stateful simulator so read-backs reflect what was set.
         if (config.Model.Contains("8673B", StringComparison.OrdinalIgnoreCase))
             return new Hp8673B(new SimulatedSource().CreateLink(resourceName), config.Role);
@@ -216,6 +231,15 @@ public static class InstrumentFactory
 
         if (config.Model.Contains("11713A", StringComparison.OrdinalIgnoreCase))
             return new Hp11713A(link, config.Role);
+
+        if (config.Model.Contains("8116A", StringComparison.OrdinalIgnoreCase))
+            return new Hp8116A(link, config.Role);
+
+        if (config.Model.Contains("DG1032Z", StringComparison.OrdinalIgnoreCase))
+            return new RigolDg1032Z(link, config.Role);
+
+        if (config.Model.Contains("E4438C", StringComparison.OrdinalIgnoreCase))
+            return new AgilentE4438C(link, config.Role);
 
         if (config.Model.Contains("8673B", StringComparison.OrdinalIgnoreCase))
             return new Hp8673B(link, config.Role);
