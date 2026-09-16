@@ -247,3 +247,82 @@ public class BlockGateTests
         Assert.Contains("Observed", line);
     }
 }
+
+/// <summary>
+/// The bare-catch sweep, prompted by the HP-Attenuator session's #39.
+///
+/// <para>Their discriminator is the useful part, and it is not "bare catch": it is <b>whether the
+/// catch makes a decision</b>. A catch that gives up on cleanup is fine. A catch that answers a
+/// question on behalf of an instrument that never answered is the bug — the answer and the
+/// absence of an answer become the same value.</para>
+///
+/// <para>Two of about twenty-five here were the second kind. This covers one; the other is in
+/// VisaInstrumentLink, which needs real VISA to exercise.</para>
+/// </summary>
+public class SelfCheckFaultTests
+{
+    private static BenchSetup Setup(string id) =>
+        SetupCatalogue.Load(Path.Combine(AppContext.BaseDirectory, "Data", "setups.json")).ById(id)!;
+
+    [Fact]
+    public void ACheckThatThrewIsNotRunNotFailed()
+    {
+        // A check that threw did not find the wiring wrong. It did not find anything, because it
+        // never completed. Reporting Failed prints the wiring diagnosis for what is usually a bus
+        // fault and sends somebody to check cables that are fine.
+        // Both instruments present, so the check gets far enough to actually run -- and then the
+        // DUT's bus dies part way through. Without both it would report NotRun for the
+        // uninteresting reason that something is missing.
+        var dut = new Hp8340B(new HP8340B.Instruments.Visa.ScriptedInstrumentLink
+        {
+            FailWrites = true,
+        });
+
+        var analyzer = new Hp8563E(new SimulatedAnalyzer().CreateLink());
+
+        var outcome = SelfChecks.Run(Setup("S1"), new SelfCheckContext([dut, analyzer]));
+
+        Assert.Equal(SelfCheckStatus.NotRun, outcome.Status);
+        Assert.Contains("not a statement about the wiring", outcome.Observed);
+    }
+
+    [Fact]
+    public void ItStillBlocksTheGateSoNothingIsLostByBeingAccurate()
+    {
+        // The reason this change is free: Failed and NotRun both refuse to open the gate. Only
+        // the diagnosis improves.
+        var gate = new BlockGate();
+        var setup = Setup("S1");
+
+        var dut = new Hp8340B(new HP8340B.Instruments.Visa.ScriptedInstrumentLink
+        {
+            FailWrites = true,
+        });
+
+        var analyzer = new Hp8563E(new SimulatedAnalyzer().CreateLink());
+
+        gate.Acknowledge(setup, "Tony");
+        gate.RunSelfCheck(setup, new SelfCheckContext([dut, analyzer]));
+
+        Assert.False(gate.IsReady("S1"));
+    }
+
+    [Fact]
+    public void AGenuineWiringFailureIsStillReportedAsFailed()
+    {
+        // The other half: the distinction only means something if a real wiring fault still says
+        // Failed. A wrongly declared pad is a wiring problem, not a bus problem.
+        var bench = BenchConfig.Load(Path.Combine(AppContext.BaseDirectory, "bench.json"));
+        var state = new SimulatedBenchState();
+
+        var instruments = bench.Instruments
+            .Where(i => i is { Present: true, Probeable: true })
+            .Select(i => InstrumentFactory.Create(i, simulate: true, state))
+            .ToList();
+
+        var outcome = SelfChecks.Run(
+            Setup("S1"), new SelfCheckContext(instruments) { PadDb = 30, CheckDbm = 0 });
+
+        Assert.Equal(SelfCheckStatus.Failed, outcome.Status);
+    }
+}

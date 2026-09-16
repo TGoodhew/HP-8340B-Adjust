@@ -191,11 +191,41 @@ public sealed class VisaInstrumentLink : IInstrumentLink
         }
     }
 
-    /// <summary>Lists VISA INSTR resources visible to the resource manager.</summary>
-    public static IEnumerable<string> FindResources()
+    /// <summary>
+    /// Lists VISA INSTR resources visible to the resource manager.
+    ///
+    /// <para><b>An empty list means the bus is empty. A failure throws.</b> Those are different
+    /// answers and the earlier version returned the same value for both — so a broken VISA
+    /// install, a missing provider or a dead interface all reported as "no instruments found",
+    /// which sends somebody to check GPIB cabling when the problem is on this side of the
+    /// connector entirely.</para>
+    ///
+    /// <para>Use <see cref="TryFindResources"/> where a caller genuinely wants to carry on
+    /// either way — it says which happened rather than collapsing them.</para>
+    /// </summary>
+    public static IEnumerable<string> FindResources() =>
+        GlobalResourceManager.Find("?*INSTR").ToList();
+
+    /// <summary>
+    /// Lists VISA resources, distinguishing "none present" from "could not ask".
+    /// </summary>
+    /// <returns>
+    /// The resources found and a null error, or an empty list and the reason the resource manager
+    /// could not be reached.
+    /// </returns>
+    public static (IReadOnlyList<string> Resources, string? Error) TryFindResources()
     {
-        try { return GlobalResourceManager.Find("?*INSTR").ToList(); }
-        catch (Exception) { return Array.Empty<string>(); }
+        try
+        {
+            return (GlobalResourceManager.Find("?*INSTR").ToList(), null);
+        }
+        catch (Exception ex)
+        {
+            return ([],
+                $"The VISA resource manager could not be reached: {ex.Message} This is not an "
+                + "empty bus — nothing was asked. Check that a VISA provider is installed and "
+                + "that its interface is configured.");
+        }
     }
 
     public void Dispose()

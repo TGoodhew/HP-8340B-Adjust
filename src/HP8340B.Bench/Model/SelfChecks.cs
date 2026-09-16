@@ -128,9 +128,16 @@ public static class SelfChecks
         }
         catch (Exception ex)
         {
+            // NotRun, not Failed. A check that threw did not find the wiring wrong -- it did not
+            // find anything, because it never completed. Reporting it as Failed prints the wiring
+            // diagnosis for what is usually a bus fault, and sends somebody to check cables that
+            // are fine. Both statuses block the gate, so nothing is lost by being accurate.
             return new SelfCheckOutcome(
-                setup.Id, SelfCheckStatus.Failed, expected,
-                $"The check threw: {ex.Message}", DateTime.UtcNow);
+                setup.Id, SelfCheckStatus.NotRun, expected,
+                $"The check could not be completed: {ex.Message} That is not a statement about "
+                + "the wiring — the check never got far enough to make one. Fix this first, then "
+                + "run it again.",
+                DateTime.UtcNow);
         }
     }
 
