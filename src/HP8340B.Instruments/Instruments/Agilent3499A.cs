@@ -53,26 +53,54 @@ public sealed record SwitchModule(
     }
 
     /// <summary>
-    /// Highest frequency the channels on a leg are good for.
+    /// Highest frequency the channels on a leg are good for, and whether that figure has a source.
     ///
-    /// <para><b>This cannot be inferred from the module.</b> A 44476 is a relay driver; what it
-    /// drives — a 33311B good to 18 GHz or a 33311C good to 26.5 GHz — is a matter of which
-    /// coaxial switch is cabled to which channel, and the mainframe has no idea. It is declared
-    /// per leg in the routing data, and this exists only to turn a declared switch model into a
-    /// limit.</para>
+    /// <para><b>It cannot be inferred from the module, and the manual says why.</b> The 44476A/B
+    /// are carrier modules — the specification lists a component area, grid hole spacing and lead
+    /// length, because the switches are mounted on them. The guide makes the same point about the
+    /// N2276B in as many words: its characteristics "are determined by the switches and
+    /// attenuators installed in it". So the limit belongs to the switch, is declared per leg in
+    /// the routing data, and this only turns a declared model into a number.</para>
+    ///
+    /// <para><b>The 33311 figures below have no source in the local manual library.</b> There is
+    /// no 33311B or 33311C manual or data sheet here. They are the widely-quoted ratings and they
+    /// are very probably right — but "widely quoted" is not a citation, and this number decides
+    /// whether a band-4 result may be reported as Spec. Anything unsourced is returned with
+    /// <c>Confirmed: false</c> so it can be shown as unconfirmed rather than printed as fact.</para>
     /// </summary>
-    public static double MaxHzForSwitch(string switchModel)
+    public static (double MaxHz, bool Confirmed, string Source) RatingForSwitch(string switchModel)
     {
         ArgumentNullException.ThrowIfNull(switchModel);
 
         return switchModel switch
         {
-            var m when m.Contains("33311C", StringComparison.OrdinalIgnoreCase) => 26.5e9,
-            var m when m.Contains("33311B", StringComparison.OrdinalIgnoreCase) => 18e9,
-            var m when m.Contains("44472", StringComparison.OrdinalIgnoreCase) => 100e6,
-            _ => 0,
+            var m when m.Contains("33311C", StringComparison.OrdinalIgnoreCase) =>
+                (26.5e9, false, "No 33311C data sheet in the local manual library — widely quoted "
+                                + "as DC-26.5 GHz, never checked against a source."),
+
+            var m when m.Contains("33311B", StringComparison.OrdinalIgnoreCase) =>
+                (18e9, false, "No 33311B data sheet in the local manual library — widely quoted as "
+                              + "DC-18 GHz, never checked against a source."),
+
+            var m when m.Contains("44476A", StringComparison.OrdinalIgnoreCase) =>
+                (18e9, true, "3499A/B/C guide, 44476A Microwave Switch Module specifications: "
+                             + "\"Frequency Range: DC to 18 GHz\"."),
+
+            var m when m.Contains("44472", StringComparison.OrdinalIgnoreCase) =>
+                (100e6, false, "No figure for the 44472A in the local library. The guide gives the "
+                               + "44478A/B as 1.3 GHz MUX modules; the 44472A's own rating has not "
+                               + "been checked. Only used for DC and audio legs here, where it is "
+                               + "not close to mattering."),
+
+            _ => (0, false, "Not a switch this project knows the rating of."),
         };
     }
+
+    /// <summary>
+    /// Highest frequency the channels on a leg are good for. See
+    /// <see cref="RatingForSwitch"/> for where each figure comes from and which are unsourced.
+    /// </summary>
+    public static double MaxHzForSwitch(string switchModel) => RatingForSwitch(switchModel).MaxHz;
 }
 
 /// <summary>

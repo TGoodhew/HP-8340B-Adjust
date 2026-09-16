@@ -96,6 +96,20 @@ public static class HookUpCard
                 : "  - NO leg on this campaign reaches 26.5 GHz. Band 4 needs direct cabling.");
         }
 
+        var unsourced = legs.Where(l => l.MaxHz > 0 && !l.LimitConfirmed).ToList();
+
+        if (unsourced.Count > 0)
+        {
+            card.AppendLine();
+            card.AppendLine("UNCONFIRMED RATINGS");
+            card.AppendLine(
+                "  - The frequency limit on " + string.Join(", ", unsourced.Select(l => l.Id))
+                + " comes from a switch model whose data sheet is not in the local manual library. "
+                + "The figure is very probably right, but it decides whether a band-4 result may "
+                + "be reported as Spec, so it is shown as unconfirmed until somebody checks it "
+                + "against a data sheet or the switch body.");
+        }
+
         var safety = new List<string>();
         if (map.DcLimitNote is { } dc) safety.Add(dc);
         if (map.PowerRatingNote is { } power) safety.Add(power);
@@ -122,7 +136,9 @@ public static class HookUpCard
 
     private static string DescribeLeg(RoutedLeg leg)
     {
-        var limit = leg.MaxHz > 0 ? $"to {leg.MaxHz / 1e9:0.#} GHz" : "UNRATED";
+        var limit = leg.MaxHz > 0
+            ? $"to {leg.MaxHz / 1e9:0.#} GHz{(leg.LimitConfirmed ? "" : " [UNCONFIRMED rating]")}"
+            : "UNRATED";
         var cables = leg.CableLabels.Count > 0 ? $" [{string.Join(", ", leg.CableLabels)}]" : "";
 
         return $"{leg.Id}: {leg.Name}{cables} — {leg.SwitchModel}, slot {leg.Slot}, "

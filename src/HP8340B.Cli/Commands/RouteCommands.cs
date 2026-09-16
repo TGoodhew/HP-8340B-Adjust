@@ -38,10 +38,15 @@ public sealed class RouteStatusCommand : Command<RouteSettings>
 
         foreach (var leg in map.AllLegs)
         {
+            // An unconfirmed rating is shown with a trailing ? rather than in confident green:
+            // this number decides whether band 4 may be Spec, and no data sheet for the 33311
+            // series is in the local manual library.
+            var mark = leg.LimitConfirmed ? "" : " ?";
+
             var limit = leg.MaxHz > 0
                 ? leg.Covers(BandId.Band4)
-                    ? $"[green]{leg.MaxHz / 1e9:0.#} GHz[/]"
-                    : $"[yellow]{leg.MaxHz / 1e9:0.#} GHz[/]"
+                    ? $"[green]{leg.MaxHz / 1e9:0.#} GHz[/][yellow]{mark}[/]"
+                    : $"[yellow]{leg.MaxHz / 1e9:0.#} GHz{mark}[/]"
                 : "[red]UNRATED[/]";
 
             table.AddRow(

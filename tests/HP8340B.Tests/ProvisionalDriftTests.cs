@@ -106,8 +106,11 @@ public class ProvisionalDriftTests
             .ToHashSet(StringComparer.Ordinal);
 
         var doc = Doc();
+        // The doc grew a second table (unsourced hardware claims), which uses a different
+        // mechanism -- Confirmed: false in the source rather than the PROVISIONAL phrase. Bound
+        // this to the first table only, or it reports the second table's rows as unmarked.
         var table = doc[doc.IndexOf("## The list", StringComparison.Ordinal)..];
-        table = table[..table.IndexOf("## Deliberately not", StringComparison.Ordinal)];
+        table = table[..table.IndexOf("## Unsourced hardware claims", StringComparison.Ordinal)];
 
         var listed = table
             .Split('\n')
@@ -131,8 +134,11 @@ public class ProvisionalDriftTests
     {
         // A list of unconfirmed numbers with no route to confirming them is a list of complaints.
         var doc = Doc();
+        // The doc grew a second table (unsourced hardware claims), which uses a different
+        // mechanism -- Confirmed: false in the source rather than the PROVISIONAL phrase. Bound
+        // this to the first table only, or it reports the second table's rows as unmarked.
         var table = doc[doc.IndexOf("## The list", StringComparison.Ordinal)..];
-        table = table[..table.IndexOf("## Deliberately not", StringComparison.Ordinal)];
+        table = table[..table.IndexOf("## Unsourced hardware claims", StringComparison.Ordinal)];
 
         var rows = table
             .Split('\n')
@@ -179,5 +185,105 @@ public class ProvisionalDriftTests
         return name is not null && name.All(c => char.IsLetterOrDigit(c) || c == '_')
             ? name
             : null;
+    }
+}
+
+/// <summary>
+/// The other half of the same discipline: figures stated ABOUT INSTRUMENTS with no manual to cite.
+///
+/// <para>Different from a threshold I chose. These need confirming against a data sheet or the
+/// hardware itself, not against a measurement — and unlike the thresholds they are checked
+/// behaviourally rather than by parsing a doc, because the mechanism is a flag in the code.</para>
+///
+/// <para>Prompted by the HP-Attenuator session auditing its own output and finding a
+/// reconstruction printing as fact: the comment said it was reconstructed, the log line did not.
+/// The same audit here found the 33311 ratings, which is the sharpest case in this repo because
+/// that number is what decides whether a band-4 result may be reported as Spec.</para>
+/// </summary>
+public class UnsourcedRatingTests
+{
+    [Theory]
+    [InlineData("33311C")]
+    [InlineData("33311B")]
+    [InlineData("44472A")]
+    public void RatingsWithNoDataSheetAreMarkedUnconfirmed(string model)
+    {
+        var rating = HP8340B.Instruments.SwitchModule.RatingForSwitch(model);
+        var (maxHz, confirmed, source) = (rating.MaxHz, rating.Confirmed, rating.Source);
+
+        Assert.True(maxHz > 0, "The limit still applies — unsourced is not the same as unknown.");
+        Assert.False(confirmed);
+        // Each says WHY it is unsourced rather than just flagging it, so somebody can tell a
+        // missing data sheet from a figure nobody has looked for.
+        Assert.Contains("local", source, StringComparison.OrdinalIgnoreCase);
+        Assert.True(source.Length > 40, $"'{source}' is too terse to act on.");
+    }
+
+    [Fact]
+    public void ARatingTheGuideActuallyGivesIsConfirmed()
+    {
+        // The distinction has to be capable of coming out true, or the flag means "rating".
+        var rating = HP8340B.Instruments.SwitchModule.RatingForSwitch("44476A");
+        var (maxHz, confirmed, source) = (rating.MaxHz, rating.Confirmed, rating.Source);
+
+        Assert.Equal(18e9, maxHz);
+        Assert.True(confirmed);
+        Assert.Contains("DC to 18 GHz", source);
+    }
+
+    [Fact]
+    public void AnUnconfirmedRatingStillConstrainsTheLeg()
+    {
+        // Unsourced is better than no limit. A band-4 result through a 33311B is still refused.
+        var leg = new HP8340B.Bench.Model.RoutedLeg { SwitchModel = "33311B" };
+
+        Assert.False(leg.LimitConfirmed);
+        Assert.False(leg.Covers(HP8340B.Instruments.Model.BandId.Band4));
+    }
+
+    [Fact]
+    public void TheHookUpCardSaysTheRatingIsUnconfirmedRatherThanPrintingItAsFact()
+    {
+        // This is the actual finding: a comment three files away does not help somebody reading
+        // "to 26.5 GHz" on a card at the bench.
+        var leg = new HP8340B.Bench.Model.RoutedLeg
+        {
+            Id = "SR-A", Name = "test", SwitchModel = "33311C", Slot = 1, Channels = [100],
+        };
+
+        Assert.Contains("unconfirmed rating", leg.Describe());
+    }
+
+    [Fact]
+    public void AConfirmedRatingIsPrintedPlainly()
+    {
+        var leg = new HP8340B.Bench.Model.RoutedLeg
+        {
+            Id = "X", Name = "test", SwitchModel = "44476A", Slot = 1, Channels = [100],
+        };
+
+        Assert.DoesNotContain("unconfirmed", leg.Describe());
+    }
+
+    [Fact]
+    public void EveryUnconfirmedRatingIsListedInTheDoc()
+    {
+        var doc = File.ReadAllText(Path.Combine(
+            RepoRoot().FullName, "docs", "PROVISIONAL.md"));
+
+        var section = doc[doc.IndexOf("## Unsourced hardware claims", StringComparison.Ordinal)..];
+
+        foreach (var model in new[] { "33311C", "33311B", "44472A" })
+            Assert.Contains(model, section, StringComparison.Ordinal);
+    }
+
+    private static DirectoryInfo RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "HP-8340B-Adjust.sln")))
+            dir = dir.Parent;
+
+        Assert.NotNull(dir);
+        return dir!;
     }
 }

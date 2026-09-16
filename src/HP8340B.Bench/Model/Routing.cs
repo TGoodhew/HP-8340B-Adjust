@@ -72,6 +72,20 @@ public sealed class RoutedLeg
     public double MaxHz => SwitchModule.MaxHzForSwitch(SwitchModel);
 
     /// <summary>
+    /// False when this leg's frequency limit has no source in the local manual library.
+    ///
+    /// <para>It still constrains what the leg may claim — an unsourced 18 GHz is better than no
+    /// limit at all — but it is shown as unconfirmed rather than printed as a fact, because this
+    /// number decides whether a band-4 result may be reported as Spec.</para>
+    /// </summary>
+    [JsonIgnore]
+    public bool LimitConfirmed => SwitchModule.RatingForSwitch(SwitchModel).Confirmed;
+
+    /// <summary>Where this leg's frequency limit comes from, or why it has no source.</summary>
+    [JsonIgnore]
+    public string LimitSource => SwitchModule.RatingForSwitch(SwitchModel).Source;
+
+    /// <summary>
     /// The traceability class a measurement at <paramref name="hz"/> can claim through this leg.
     ///
     /// <para><b>This is the rule that stops a band-4 result being reported as Spec through an
@@ -92,7 +106,9 @@ public sealed class RoutedLeg
     /// <summary>A hook-up card line for this leg.</summary>
     public string Describe()
     {
-        var limit = MaxHz > 0 ? $"{MaxHz / 1e9:0.#} GHz" : "UNRATED";
+        var limit = MaxHz > 0
+            ? $"{MaxHz / 1e9:0.#} GHz{(LimitConfirmed ? "" : " [unconfirmed rating]")}"
+            : "UNRATED";
         var cables = CableLabels.Count > 0 ? $" [{string.Join(", ", CableLabels)}]" : "";
         var channels = Channels.Count > 0 ? string.Join(",", Channels) : "none";
 
