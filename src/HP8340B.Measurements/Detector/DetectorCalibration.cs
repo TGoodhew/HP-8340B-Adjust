@@ -194,7 +194,8 @@ public sealed record DetectorCalibration(
     DetectorFit Fit,
     DateTime At,
     IReadOnlyList<DetectorPoint> Points,
-    IReadOnlyList<string> Warnings)
+    IReadOnlyList<string> Warnings,
+    ScopeBinding? Scope = null)
 {
     /// <summary>
     /// This calibrates a relative scale, not an absolute one: it says how many dB apart two points
@@ -215,6 +216,51 @@ public sealed record DetectorCalibration(
         && Math.Abs(videoLoadOhms - VideoLoadOhms) / VideoLoadOhms < 0.01;
 
     /// <summary>Why this calibration does not apply, for a message worth reading.</summary>
+    /// <summary>
+    /// True if this calibration may be used with the detector, scope and band now in use.
+    ///
+    /// <para><b>A calibration that does not know which scope it was taken on cannot answer this
+    /// and returns false.</b> That is deliberate and it is the whole point of M0-29: the load the
+    /// detector drives depends on the scope's termination, and a calibration taken at 1 MΩ applied
+    /// at 50 Ω is wrong by tens of dB while still producing a curve that looks like a detector
+    /// curve. Silence is not evidence of a match.</para>
+    /// </summary>
+    public bool AppliesTo(DetectorModel detector, ScopeBinding scope, BandId band)
+    {
+        ArgumentNullException.ThrowIfNull(detector);
+        ArgumentNullException.ThrowIfNull(scope);
+
+        return Scope is not null
+               && Scope.Matches(scope)
+               && AppliesTo(detector, scope.VideoLoadOhms, band);
+    }
+
+    /// <summary>Why it does not apply, naming everything that differs at once.</summary>
+    public string ExplainMismatch(DetectorModel detector, ScopeBinding scope, BandId band)
+    {
+        ArgumentNullException.ThrowIfNull(detector);
+        ArgumentNullException.ThrowIfNull(scope);
+
+        if (Scope is null)
+            return "Re-run the detector calibration: this one does not record which scope or "
+                   + "termination it was taken on, so there is no way to tell whether it applies. "
+                   + "It predates M0-29. The load the detector drives depends on the scope's "
+                   + "input termination, and a fit taken at 1 Mohm used at 50 ohm is wrong by tens "
+                   + "of dB while still looking like a detector curve.";
+
+        var reasons = new List<string>(Scope.Differences(scope));
+
+        if (detector.Name != Detector.Name)
+            reasons.Add($"calibrated with the {Detector.Name}, now using the {detector.Name}");
+
+        if (band != Band)
+            reasons.Add($"calibrated in band {(int)Band}, now in band {(int)band}");
+
+        return reasons.Count == 0
+            ? "It does apply."
+            : "Re-run the detector calibration: " + string.Join("; ", reasons) + ".";
+    }
+
     public string ExplainMismatch(DetectorModel detector, double videoLoadOhms, BandId band)
     {
         var reasons = new List<string>();

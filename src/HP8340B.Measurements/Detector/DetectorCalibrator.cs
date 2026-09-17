@@ -63,7 +63,8 @@ public static class DetectorCalibrator
         double calibrationHz,
         IReadOnlyList<double> levelsDbm,
         Func<double, double> measure,
-        int degree = DefaultDegree)
+        int degree = DefaultDegree,
+        ScopeBinding? scope = null)
     {
         ArgumentNullException.ThrowIfNull(detector);
         ArgumentNullException.ThrowIfNull(levelsDbm);
@@ -109,7 +110,40 @@ public static class DetectorCalibrator
                 + "being the wrong shape.");
 
         return new DetectorCalibration(
-            detector, videoLoadOhms, band, calibrationHz, fit, DateTime.UtcNow, points, warnings);
+            detector, videoLoadOhms, band, calibrationHz, fit, DateTime.UtcNow, points, warnings,
+            scope);
+    }
+
+    /// <summary>
+    /// Calibrates against a known scope binding, taking the video load from the binding rather
+    /// than from a separate argument.
+    ///
+    /// <para><b>Prefer this overload.</b> Passing the scope and the load separately allows them to
+    /// disagree, and a calibration that records 1 Mohm while the detector actually drove 50 ohm is
+    /// worse than one that records nothing — it carries the authority of a stated figure. Here the
+    /// load is derived from the termination the scope reported, so the two cannot drift
+    /// apart.</para>
+    /// </summary>
+    /// <param name="detector">The detector in use.</param>
+    /// <param name="scope">Scope, channel and termination — see <see cref="ScopeBinding.From"/>.</param>
+    /// <param name="band">Band being calibrated.</param>
+    /// <param name="calibrationHz">Frequency the calibration was taken at.</param>
+    /// <param name="levelsDbm">Levels to step through.</param>
+    /// <param name="measure">Sets the DUT level and returns the detector output in volts.</param>
+    /// <param name="degree">Polynomial degree of the fit.</param>
+    public static DetectorCalibration Calibrate(
+        DetectorModel detector,
+        ScopeBinding scope,
+        BandId band,
+        double calibrationHz,
+        IReadOnlyList<double> levelsDbm,
+        Func<double, double> measure,
+        int degree = DefaultDegree)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+
+        return Calibrate(
+            detector, scope.VideoLoadOhms, band, calibrationHz, levelsDbm, measure, degree, scope);
     }
 
     /// <summary>
