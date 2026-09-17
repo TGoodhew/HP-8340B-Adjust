@@ -60,13 +60,38 @@ public sealed record ScopeWaveform(
 /// <see cref="ReadWaveformStreaming"/>. What this link actually achieves is unmeasured and is a
 /// job for the M0-30 benchmark, not for anybody's estimate.</para>
 /// </summary>
-public sealed class RigolDs1104Z : IInstrument
+public sealed class RigolDs1104Z : IOscilloscope
 {
     private readonly IInstrumentLink _link;
 
     public string Role { get; }
     public string Model => "Rigol DS1104Z";
     public IInstrumentLink Link => _link;
+
+    /// <summary>
+    /// What a DS1104Z can do.
+    ///
+    /// <para>Source: <b>MSO1000Z/DS1000Z User Guide</b> - 100 MHz and four analogue channels for
+    /// the 1104Z variants, and "1 mV/div to 10 V/div ultra-wide vertical dynamic range".</para>
+    ///
+    /// <para><b>1 MΩ only.</b> The guide documents no channel input-impedance control at all: its
+    /// only impedance settings belong to the built-in signal generator on the -S models. That
+    /// absence is the evidence, which is weaker than a printed specification, so treat it as
+    /// confirmed by the front panel rather than by the manual. It matters because it is the
+    /// difference between this scope and the other four on the bench, and it is why S4 carries a
+    /// 50 Ω feedthrough as a separate part.</para>
+    /// </summary>
+    public ScopeCapability Capability { get; } = new(
+        Model: "Rigol DS1104Z",
+        Channels: 4,
+        BandwidthHz: 100e6,
+        MinVoltsPerDivision: 1e-3,
+        MaxVoltsPerDivision: 10.0,
+        InputImpedances: [ScopeInputImpedance.OneMegaohm],
+        HasExternalTrigger: true,
+        HasXyMode: true,
+        Derates: [],
+        Source: "MSO1000Z/DS1000Z User Guide");
 
     public RigolDs1104Z(IInstrumentLink link, string role = "oscilloscope")
     {
@@ -150,6 +175,33 @@ public sealed class RigolDs1104Z : IInstrument
 
         _link.Write($":CHANnel{channel}:PROBe {Num(ratio)}");
         InvalidateWaveformScaling();
+    }
+
+    /// <summary>
+    /// Input termination. The DS1104Z is 1 MΩ only, so anything else is refused.
+    ///
+    /// <para>Refused rather than ignored on purpose. A driver that silently stayed at 1 MΩ when
+    /// asked for 50 Ω would leave the detector calibration describing a termination that is not in
+    /// use, and the resulting trace would be wrong by a constant factor and look entirely
+    /// plausible (M0-29).</para>
+    /// </summary>
+    public void SetInputImpedance(int channel, ScopeInputImpedance impedance)
+    {
+        ValidateChannel(channel);
+
+        if (impedance != ScopeInputImpedance.OneMegaohm)
+            throw new NotSupportedException(
+                $"The DS1104Z's channels are 1 Mohm only, so {impedance} cannot be selected. S4 "
+                + "uses an external 50 ohm feedthrough (HP 10100C) for this reason; for a "
+                + "measurement that genuinely needs a terminated input, such as 4-12 rise and "
+                + "fall, use a scope with a real 50 ohm input.");
+    }
+
+    /// <summary>Always 1 MΩ on this model.</summary>
+    public ScopeInputImpedance GetInputImpedance(int channel)
+    {
+        ValidateChannel(channel);
+        return ScopeInputImpedance.OneMegaohm;
     }
 
     /// <summary>Horizontal scale, seconds per division.</summary>
