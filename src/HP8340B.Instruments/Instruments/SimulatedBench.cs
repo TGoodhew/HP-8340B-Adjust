@@ -116,8 +116,29 @@ public static class SimulatedBench
                 return "0,0,600,1,1e-06,0,0,0.01,0,127";
             }
 
-            // The waveform itself is not a Query: the driver writes :WAVeform:DATA? and then reads
-            // raw bytes, so it arrives through NextBytes below.
+            // The Tektronix scopes read their preamble a field at a time. Same synthetic
+            // envelope as the Rigol's, expressed in the Tek convention:
+            // volts = YZEro + YMUlt x (raw - YOFf).
+            if (model.Contains("TDS3014B", StringComparison.OrdinalIgnoreCase)
+                || model.Contains("DPO3034", StringComparison.OrdinalIgnoreCase))
+            {
+                if (c.Contains("NR_Pt", StringComparison.OrdinalIgnoreCase)) return "600";
+                if (c.Contains("YMUlt", StringComparison.OrdinalIgnoreCase)) return "0.01";
+                if (c.Contains("YOFf", StringComparison.OrdinalIgnoreCase)) return "0";
+                if (c.Contains("YZEro", StringComparison.OrdinalIgnoreCase)) return "0";
+                if (c.Contains("XINcr", StringComparison.OrdinalIgnoreCase)) return "1e-06";
+                if (c.Contains("XZEro", StringComparison.OrdinalIgnoreCase)) return "0";
+                if (c.Contains("PT_Off", StringComparison.OrdinalIgnoreCase)) return "0";
+
+                // TekProbe reports attenuation as a gain factor, so a 10:1 probe reads 0.1.
+                if (c.Contains("PRObe", StringComparison.OrdinalIgnoreCase)) return "1.0";
+
+                if (c.Contains("IMPedance", StringComparison.OrdinalIgnoreCase)) return "MEG";
+                if (c.Contains("TERmination", StringComparison.OrdinalIgnoreCase)) return "1.0E+6";
+            }
+
+            // The waveform itself is not a Query: the driver writes :WAVeform:DATA? or CURVe? and
+            // then reads raw bytes, so it arrives through NextBytes below.
 
             // OI is the 8340B's identification query — it predates *IDN?. Table 3-2 says 19
             // ASCII characters, so the simulator returns exactly that width.
@@ -138,6 +159,10 @@ public static class SimulatedBench
 
         if (model.Contains("DS1104Z", StringComparison.OrdinalIgnoreCase))
             link.NextBytes = SimulatedDetectorFrame();
+
+        if (model.Contains("TDS3014B", StringComparison.OrdinalIgnoreCase)
+            || model.Contains("DPO3034", StringComparison.OrdinalIgnoreCase))
+            link.NextBytes = SimulatedTekDetectorFrame();
 
         if (isDut)
         {
@@ -181,6 +206,40 @@ public static class SimulatedBench
         }
 
         var header = Encoding.ASCII.GetBytes($"#9{points:D9}");
+        var block = new byte[header.Length + samples.Length];
+
+        header.CopyTo(block, 0);
+        samples.CopyTo(block, header.Length);
+
+        return block;
+    }
+
+    /// <summary>
+    /// The same synthetic detector envelope as <see cref="SimulatedDetectorFrame"/>, in the
+    /// Tektronix convention: signed bytes, scaled by volts = YZEro + YMUlt x (raw - YOFf) with
+    /// YZEro and YOFf zero and YMUlt 0.01.
+    ///
+    /// <para>Signed rather than unsigned is the point of having it separate. The Rigol sends
+    /// unsigned codes with a mid-scale reference; Tek sends signed ones. A driver that confused the
+    /// two would produce a trace that is wrong by an offset and still looks like a swept
+    /// envelope.</para>
+    /// </summary>
+    internal static byte[] SimulatedTekDetectorFrame(int points = 600)
+    {
+        const double VoltsPerCode = 0.01;
+
+        var samples = new byte[points];
+
+        for (var i = 0; i < points; i++)
+        {
+            var x = (i - points / 2.0) / (points / 2.0);
+            var volts = -0.5 + 0.4 * x * x;
+
+            var code = (int)Math.Round(volts / VoltsPerCode);
+            samples[i] = unchecked((byte)(sbyte)Math.Clamp(code, -128, 127));
+        }
+
+        var header = Encoding.ASCII.GetBytes($"#{points.ToString().Length}{points}");
         var block = new byte[header.Length + samples.Length];
 
         header.CopyTo(block, 0);
@@ -240,6 +299,15 @@ public static class SimulatedBench
 
         if (config.Model.Contains("DS1104Z", StringComparison.OrdinalIgnoreCase))
             return new RigolDs1104Z(link, config.Role);
+
+        // Matched on the full model number: the two Tektronix scopes share a command family but
+        // are not command compatible, so a loose "TDS3" or "DPO3" test would hand one of them the
+        // other's driver and fail in ways that look like a dead instrument.
+        if (config.Model.Contains("TDS3014B", StringComparison.OrdinalIgnoreCase))
+            return new Tds3014B(link, config.Role);
+
+        if (config.Model.Contains("DPO3034", StringComparison.OrdinalIgnoreCase))
+            return new Dpo3034(link, config.Role);
 
         if (config.Model.Contains("8902A", StringComparison.OrdinalIgnoreCase))
             return new Hp8902A(link, config.Role);
@@ -326,6 +394,15 @@ public static class InstrumentFactory
 
         if (config.Model.Contains("DS1104Z", StringComparison.OrdinalIgnoreCase))
             return new RigolDs1104Z(link, config.Role);
+
+        // Matched on the full model number: the two Tektronix scopes share a command family but
+        // are not command compatible, so a loose "TDS3" or "DPO3" test would hand one of them the
+        // other's driver and fail in ways that look like a dead instrument.
+        if (config.Model.Contains("TDS3014B", StringComparison.OrdinalIgnoreCase))
+            return new Tds3014B(link, config.Role);
+
+        if (config.Model.Contains("DPO3034", StringComparison.OrdinalIgnoreCase))
+            return new Dpo3034(link, config.Role);
 
         if (config.Model.Contains("8902A", StringComparison.OrdinalIgnoreCase))
             return new Hp8902A(link, config.Role);
