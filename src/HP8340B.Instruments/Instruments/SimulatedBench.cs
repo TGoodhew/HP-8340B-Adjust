@@ -309,6 +309,9 @@ public static class SimulatedBench
         if (config.Model.Contains("DPO3034", StringComparison.OrdinalIgnoreCase))
             return new Dpo3034(link, config.Role);
 
+        if (config.Model.Contains("54845A", StringComparison.OrdinalIgnoreCase))
+            return new Infiniium54845A(link, config.Role);
+
         if (config.Model.Contains("8902A", StringComparison.OrdinalIgnoreCase))
             return new Hp8902A(link, config.Role);
 
@@ -403,6 +406,9 @@ public static class InstrumentFactory
 
         if (config.Model.Contains("DPO3034", StringComparison.OrdinalIgnoreCase))
             return new Dpo3034(link, config.Role);
+
+        if (config.Model.Contains("54845A", StringComparison.OrdinalIgnoreCase))
+            return new Infiniium54845A(link, config.Role);
 
         if (config.Model.Contains("8902A", StringComparison.OrdinalIgnoreCase))
             return new Hp8902A(link, config.Role);
