@@ -452,6 +452,72 @@ public sealed class SimulatedSweeper
         ];
     }
 
+    // --- Leveled squegging, 5-16 steps 30-50 ----------------------------------------------------
+
+    /// <summary>
+    /// How far below maximum leveled power a fully over-biased leveled pot still squegs, in dB.
+    /// The manual's ladder runs from maximum leveled power down to -20 dBm, so this is set wide
+    /// enough that a badly set pot misbehaves at every rung and a slightly-past one only at the
+    /// top — otherwise "test at every level" could not be told from "test at the highest level".
+    /// </summary>
+    public const double LeveledSquegSpreadDb = 30.0;
+
+    /// <summary>
+    /// The lowest ALC level at which this frequency squegs with the ALC in circuit, or positive
+    /// infinity if the leveled bias pot is set correctly.
+    /// </summary>
+    public double LeveledSquegOnsetDbm(double ghz)
+    {
+        var pot = LeveledPotAt(ghz);
+        if (pot is null || !pot.Squegging) return double.PositiveInfinity;
+
+        return MaxLeveledPower.ForFrequency(Option, ghz) - LeveledSquegSpreadDb * pot.Excess;
+    }
+
+    /// <summary>
+    /// True if the instrument squegs at this frequency with the ALC holding the level — the
+    /// symptom 5-16 steps 32-36 and 41-50 look for.
+    ///
+    /// <para>Driven by the <b>leveled</b> bias pot (X2C/X3C/X4C), not the unleveled ones: these
+    /// are different controls on the same assembly, and an instrument can pass 5-14 and fail 5-16.
+    /// Whether it squegs depends on the level as well as the bias, which is why the manual walks
+    /// the ALC from maximum down to -20 dBm rather than testing one level.</para>
+    ///
+    /// <para>Above maximum leveled power this returns false: the ALC has run out of range there
+    /// and <see cref="IsUnleveled"/> is what describes the instrument, which is exactly the
+    /// distinction 5-16 step 32 asks the operator to make.</para>
+    /// </summary>
+    public bool IsSqueggingLeveled(double ghz, double alcDbm)
+    {
+        if (alcDbm > MaxLeveledPower.ForFrequency(Option, ghz)) return false;
+
+        return alcDbm >= LeveledSquegOnsetDbm(ghz);
+    }
+
+    /// <summary>
+    /// Spurious responses on the output at <paramref name="ghz"/> with the ALC set to
+    /// <paramref name="alcDbm"/>, as the 8563E sees them (5-16 steps 41, 45 and 49).
+    ///
+    /// <para>Same shape as <see cref="SpursAt"/> — the mechanism is the same relaxation
+    /// oscillation — but governed by the leveled bias pot.</para>
+    /// </summary>
+    public IReadOnlyList<SimulatedSpur> SpursAtLeveled(double ghz, double alcDbm)
+    {
+        if (!IsSqueggingLeveled(ghz, alcDbm)) return [];
+
+        var excess = LeveledPotAt(ghz)!.Excess;
+
+        var offsetHz = 25e6 + 115e6 * excess;
+        var dbc = -35.0 + 25.0 * excess;
+
+        return
+        [
+            new SimulatedSpur(-offsetHz, dbc),
+            new SimulatedSpur(+offsetHz, dbc),
+            new SimulatedSpur(+2 * offsetHz, dbc - 12.0),
+        ];
+    }
+
     // --- Judging, the same way the procedure does ----------------------------------------------
 
     /// <summary>

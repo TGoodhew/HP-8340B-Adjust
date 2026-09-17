@@ -34,6 +34,7 @@ too tight — and that question is only askable if it is written down that nobod
 | `Hp437B.ZeroSettle` | 10 s | Time the 437B's zero routine. The manual gives no figure. |
 | `SquegScanner.WarnDbc` | −40 dBc | The manual describes squegging as "a higher-amplitude spurious response" and gives **no number** — it is an eyeball test against a display. Scan a known-good 8340B and see what its worst non-harmonic response actually is; the threshold belongs a few dB above that. |
 | `SquegScanner.StrongDbc` | −25 dBc | Same run. This one should sit where a response is unambiguously worth stopping to adjust rather than noting. |
+| `LeveledSquegScanner.SearchHeadroomDb` | 6 dB | How far above the Table 4-9 figure a healthy 8340B actually levels before UNLEVELED sets. Raise the level on a known-good instrument at several points in each band and record where the bit sets; the headroom belongs just above the largest of those. This one is doing safety work as well as sanity work — it is the ceiling of the level search, so everything below it reaches the DUT output. |
 | `MonotonicityTest.ReversalThresholdDb` | 0.2 dB | Ramp a known-good instrument and look at the scatter between adjacent 1 dB steps. The threshold has to clear that, or noise reads as power reversal. |
 
 ## Unsourced hardware claims

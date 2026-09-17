@@ -25,6 +25,23 @@ public enum SpurSeverity
 
     /// <summary>Well above — the SRD bias needs backing off.</summary>
     Strong,
+
+    /// <summary>
+    /// Real, and <b>not adjustable</b>: found with the ALC asking for more than the maximum
+    /// <i>specified</i> leveled power for the band.
+    ///
+    /// <para>5-16 steps 32-34 draw this line explicitly. If the requested ALC level is at or below
+    /// maximum specified leveled power a response is a fault and the leveled bias pot wants
+    /// backing off; above it, "what you are seeing is probably the RF output going unleveled and
+    /// cannot be adjusted out". Turning the pot to chase it would leave the instrument worse than
+    /// it started.</para>
+    ///
+    /// <para>Last in the enum only because it is the later addition. Nothing here depends on
+    /// that: every use is an equality or a pattern match, never an order comparison, and the
+    /// session writer serialises enums through a <c>JsonStringEnumConverter</c>, so the name is
+    /// what reaches disk and the number carries no meaning to preserve.</para>
+    /// </summary>
+    Unleveled,
 }
 
 /// <summary>One spurious response found beside a carrier.</summary>
@@ -33,12 +50,19 @@ public enum SpurSeverity
 /// <param name="Dbc">Level relative to the carrier.</param>
 /// <param name="Severity">How serious.</param>
 /// <param name="Pot">
-/// The A24 pot that owns this frequency, from the verified <see cref="Bands.UnleveledPotFor"/>
-/// map — null in bands 0 and 1, which have none.
+/// The A24 pot that owns this frequency — <see cref="Bands.UnleveledPotFor"/> for the 5-14 scan,
+/// <see cref="Bands.LeveledPotFor"/> for the 5-16 one. Null in bands 0 and 1, which have neither.
 /// </param>
 /// <param name="AnalyzerNoiseFloorDbc">
 /// The analyzer's own floor at this point, relative to the carrier. A spur is only a finding if it
 /// is above this; recording it is what makes the result defensible later (rule 3).
+/// </param>
+/// <param name="RequestedDbm">
+/// What the DUT was being asked for when the response appeared. 5-16 step 32 turns on exactly this
+/// — "examine the ENTRY DISPLAY to determine the requested ALC level" — because whether the level
+/// is at or above maximum specified leveled power is what decides if there is anything to adjust.
+/// The leveled scan visits one carrier at several levels, so a finding without its level cannot be
+/// acted on.
 /// </param>
 public sealed record SquegFinding(
     double CarrierHz,
@@ -46,16 +70,22 @@ public sealed record SquegFinding(
     double Dbc,
     SpurSeverity Severity,
     string? Pot,
-    double AnalyzerNoiseFloorDbc)
+    double AnalyzerNoiseFloorDbc,
+    double RequestedDbm)
 {
     /// <summary>True if this needs somebody to turn something.</summary>
     public bool IsActionable => Severity is SpurSeverity.Warn or SpurSeverity.Strong;
 
-    /// <summary>A line naming the frequency, the response and what to turn.</summary>
+    /// <summary>A line naming the frequency, the level, the response and what to turn.</summary>
     public string Describe()
     {
-        var head = $"{CarrierHz / 1e9:0.000} GHz: {Dbc:0.0} dBc at "
+        var head = $"{CarrierHz / 1e9:0.000} GHz at {RequestedDbm:+0.#;-0.#} dBm: {Dbc:0.0} dBc at "
                    + $"{OffsetHz / 1e6:+0.0;-0.0} MHz [{Severity}]";
+
+        if (Severity == SpurSeverity.Unleveled)
+            return head + " — ABOVE maximum specified leveled power. Per 5-16 step 32 this is "
+                        + "probably the RF output going unleveled, not squegging, and cannot be "
+                        + "adjusted out. Do not turn the pot for this one.";
 
         if (Severity == SpurSeverity.Expected)
             return head + " — EXPECTED. Band-1 squegging is a function of SYTM input power and "
@@ -337,7 +367,7 @@ public static class SquegScanner
                 findings.Add(new SquegFinding(
                     carrierHz, offsetHz, dbc, severity,
                     Bands.UnleveledPotFor(carrierHz / 1e9),
-                    floor));
+                    floor, requestedDbm));
             }
         }
 
