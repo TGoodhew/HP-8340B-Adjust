@@ -22,6 +22,36 @@ public sealed class SimulatedInstrumentLink : IInstrumentLink
     /// <summary>Simulated I/O is instant, but the value round-trips so config is testable.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// Artificial per-operation cost, so the M0-30 rate framework can be exercised with no
+    /// hardware (rule 4). Zero by default, which keeps the rest of the suite fast.
+    ///
+    /// <para><b>This is not a measurement of anything.</b> A number produced against a simulated
+    /// link says only what this property was set to. Every <see cref="InstrumentTransaction"/>
+    /// recorded here carries <see cref="IsSimulated"/> with it, and
+    /// <see cref="Timing.LatencyProfile"/> refuses to shed that flag, so a simulated figure cannot
+    /// be presented later as a bench result.</para>
+    /// </summary>
+    public SimulatedLatency Latency { get; set; } = SimulatedLatency.None;
+
+    /// <summary>
+    /// Spends the configured cost of one operation and reports what it cost.
+    ///
+    /// <para>Busy-waits rather than sleeping: <c>Thread.Sleep</c> on Windows rounds up to the
+    /// system timer tick, so a requested 1 ms routinely becomes 15, which would make the framework
+    /// look like it was measuring something when it was measuring the scheduler.</para>
+    /// </summary>
+    private TimeSpan Spend(int bytes = 0)
+    {
+        var cost = Latency.For(bytes);
+        if (cost <= TimeSpan.Zero) return TimeSpan.Zero;
+
+        var watch = Stopwatch.StartNew();
+        while (watch.Elapsed < cost) Thread.SpinWait(50);
+
+        return watch.Elapsed;
+    }
+
     /// <summary>The most recent command written, or an empty string if none.</summary>
     public string LastWrite => _history.Count > 0 ? _history[^1] : string.Empty;
 
@@ -60,13 +90,13 @@ public sealed class SimulatedInstrumentLink : IInstrumentLink
     {
         ArgumentNullException.ThrowIfNull(command);
         _history.Add(command);
-        Log(BusOperation.Write, command);
+        Log(BusOperation.Write, command, null, Spend(command.Length));
     }
 
     public string Read()
     {
         var response = _responder(LastWrite);
-        Log(BusOperation.Read, response);
+        Log(BusOperation.Read, response, null, Spend(response.Length));
         return response;
     }
 
@@ -74,7 +104,7 @@ public sealed class SimulatedInstrumentLink : IInstrumentLink
     {
         Write(command);
         var response = _responder(command);
-        Log(BusOperation.Read, response);
+        Log(BusOperation.Read, response, null, Spend(response.Length));
         return response;
     }
 
@@ -93,7 +123,7 @@ public sealed class SimulatedInstrumentLink : IInstrumentLink
         // caught by its own assertions rather than by a ragged array.
         var data = new byte[count];
         Array.Copy(NextBytes, data, Math.Min(count, NextBytes.Length));
-        Log(BusOperation.Read, $"<{count} bytes>");
+        Log(BusOperation.Read, $"<{count} bytes>", null, Spend(count));
         return data;
     }
 
@@ -101,14 +131,17 @@ public sealed class SimulatedInstrumentLink : IInstrumentLink
     {
         ArgumentNullException.ThrowIfNull(data);
         LastBytesWritten = data;
-        Log(BusOperation.Write, $"<{data.Length} bytes>");
+        Log(BusOperation.Write, $"<{data.Length} bytes>", null, Spend(data.Length));
     }
 
     public byte SerialPoll()
     {
         var status = StatusSequence is not null ? StatusSequence(_pollCount) : StatusByte;
         _pollCount++;
-        Log(BusOperation.SerialPoll, string.Empty, status);
+
+        // A serial poll moves one byte and skips the instrument's command parser, which is why it
+        // is the 8340B's settling mechanism rather than a query.
+        Log(BusOperation.SerialPoll, string.Empty, status, Spend());
         return status;
     }
 
