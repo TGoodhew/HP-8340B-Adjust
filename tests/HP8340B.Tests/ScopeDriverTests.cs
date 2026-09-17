@@ -1,3 +1,4 @@
+using System.Text;
 using HP8340B.Instruments;
 using HP8340B.Instruments.Config;
 using HP8340B.Instruments.Visa;
@@ -63,17 +64,96 @@ public class ScopeDriverTests
     }
 
     [Fact]
-    public void WaveformIsReadInAsciiSoSamplesArriveAlreadyInVolts()
+    public void WaveformIsReadAsBytesAndScaledFromThePreamble()
     {
-        // BYTE format is faster on the wire but needs yincrement/yorigin/yreference applied by
-        // hand. At screen depth the difference does not reach M2-02's 0.5 s budget.
+        // BYTE is one byte a sample against roughly 14 characters for ASCII, and the S4 view is
+        // watched while somebody turns a pot. The scaling ASCII used to apply for us now comes out
+        // of the preamble: volts = (raw - yorigin - yreference) * yincrement.
         var (scope, link) = New();
         var wave = scope.ReadWaveform(1);
 
         Assert.Contains(":WAVeform:SOURce CHANnel1", link.History);
-        Assert.Contains(":WAVeform:FORMat ASCii", link.History);
+        Assert.Contains(":WAVeform:FORMat BYTE", link.History);
         Assert.Equal(600, wave.Volts.Count);
         Assert.Equal(1, wave.Channel);
+    }
+
+    [Fact]
+    public void StreamingAFrameCostsOneRoundTripOnceWarm()
+    {
+        // This is the whole point of caching the preamble, and it is exactly the kind of thing
+        // that regresses silently: an extra query per frame costs nothing in a unit test and a
+        // third of the frame rate at the bench.
+        var (scope, link) = New();
+
+        scope.ReadWaveformStreaming(1);
+
+        var warm = link.Transactions.Count;
+        scope.ReadWaveformStreaming(1);
+
+        // Transactions counts real bus operations, so a round trip is the write of
+        // :WAVeform:DATA? plus the binary read that answers it. Two, and nothing else.
+        Assert.Equal(2, link.Transactions.Count - warm);
+    }
+
+    [Fact]
+    public void TheOneShotPathCostsMoreThanAStreamedFrame()
+    {
+        var (scope, link) = New();
+
+        scope.ReadWaveformStreaming(1);
+        var warm = link.Transactions.Count;
+        scope.ReadWaveformStreaming(1);
+        var streamed = link.Transactions.Count - warm;
+
+        var before = link.Transactions.Count;
+        scope.ReadWaveform(1);
+        var oneShot = link.Transactions.Count - before;
+
+        Assert.True(oneShot > streamed,
+            $"One-shot took {oneShot} bus operations and a streamed frame {streamed}; the cache "
+            + "is not saving anything.");
+    }
+
+    [Fact]
+    public void StreamingAndOneShotAgreeOnTheTrace()
+    {
+        // A faster path that quietly returns different numbers would be worse than a slow one.
+        var (scope, _) = New();
+
+        var oneShot = scope.ReadWaveform(1);
+        var streamed = scope.ReadWaveformStreaming(1);
+
+        Assert.Equal(oneShot.Volts, streamed.Volts);
+    }
+
+    [Fact]
+    public void ChangingTheVerticalScaleDiscardsTheCachedPreamble()
+    {
+        // A stale yincrement gives a trace wrong by a constant factor that looks entirely
+        // plausible. The preamble has to be re-read after anything that changes what a code means.
+        var (scope, link) = New();
+
+        scope.ReadWaveformStreaming(1);
+        scope.SetChannelScale(1, 0.05);
+
+        var before = link.History.Count;
+        scope.ReadWaveformStreaming(1);
+
+        Assert.Contains(":WAVeform:PREamble?", link.History.Skip(before));
+    }
+
+    [Fact]
+    public void ReadingADifferentChannelRereadsThePreamble()
+    {
+        var (scope, link) = New();
+
+        scope.ReadWaveformStreaming(1);
+
+        var before = link.History.Count;
+        scope.ReadWaveformStreaming(2);
+
+        Assert.Contains(":WAVeform:SOURce CHANnel2", link.History.Skip(before));
     }
 
     [Fact]
@@ -101,20 +181,44 @@ public class ScopeDriverTests
         Assert.True(wave.Volts.Max() - wave.Volts.Min() > 0.1, "Trace should have real shape.");
     }
 
-    [Theory]
-    // Rigol returns a definite-length block: '#' then one digit giving the header width, then
-    // that many digits of byte count, then the payload.
-    [InlineData("#9000001200-0.5,-0.4,-0.3", new[] { -0.5, -0.4, -0.3 })]
-    [InlineData("-0.5,-0.4,-0.3", new[] { -0.5, -0.4, -0.3 })]
-    [InlineData("  -1.0, -2.0 ", new[] { -1.0, -2.0 })]
-    public void BlockHeaderIsStrippedBeforeParsing(string response, double[] expected) =>
-        Assert.Equal(expected, RigolDs1104Z.ParseAsciiBlock(response));
+    [Fact]
+    public void TheBlockHeaderDecidesHowManySamplesThereAre()
+    {
+        // Rigol returns a definite-length block: '#', one digit giving the header width, that many
+        // digits of byte count, then the payload. The read buffer is deliberately generous, so
+        // trusting its length instead of the header would append phantom samples to every trace.
+        var block = Encoding.ASCII.GetBytes("#900000000312").Concat(new byte[] { 9, 9 }).ToArray();
+
+        var payload = RigolDs1104Z.StripBlockHeader(block);
+
+        Assert.Equal(3, payload.Count);
+        Assert.Equal(new byte[] { (byte)'1', (byte)'2', 9 }, payload.ToArray());
+    }
 
     [Fact]
-    public void EmptyOrCorruptWaveformFailsLoudly()
+    public void AResponseWithNoHeaderIsTakenWhole()
     {
-        Assert.Throws<InvalidOperationException>(() => RigolDs1104Z.ParseAsciiBlock(""));
-        Assert.Throws<InvalidOperationException>(() => RigolDs1104Z.ParseAsciiBlock("1.0,oops,3.0"));
+        var payload = RigolDs1104Z.StripBlockHeader([1, 2, 3]);
+        Assert.Equal(3, payload.Count);
+    }
+
+    [Fact]
+    public void AHeaderClaimingMoreThanArrivedFallsBackToWhatArrived()
+    {
+        // A short read should surface as a short trace, not as an exception and not as a silently
+        // padded one.
+        var block = Encoding.ASCII.GetBytes("#9000009999").Concat(new byte[] { 7, 7 }).ToArray();
+
+        Assert.Equal(2, RigolDs1104Z.StripBlockHeader(block).Count);
+    }
+
+    [Fact]
+    public void AnEmptyWaveformFailsLoudly()
+    {
+        var (scope, link) = New();
+        link.NextBytes = Encoding.ASCII.GetBytes("#9000000000");
+
+        Assert.Throws<InvalidOperationException>(() => scope.ReadWaveform(1));
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using System.Text;
 using HP8340B.Instruments.Config;
 using HP8340B.Instruments.Visa;
 
@@ -105,20 +106,18 @@ public static class SimulatedBench
             // DS1104Z: a preamble and a synthetic detector trace, so the XY view is developable
             // offline. The trace falls away at both ends like a real swept envelope, so a broken
             // minimum-finder cannot pass against a flat line.
-            if (model.Contains("DS1104Z", StringComparison.OrdinalIgnoreCase))
+            if (model.Contains("DS1104Z", StringComparison.OrdinalIgnoreCase)
+                && c.StartsWith(":WAVeform:PREamble?", StringComparison.OrdinalIgnoreCase))
             {
-                if (c.StartsWith(":WAVeform:PREamble?", StringComparison.OrdinalIgnoreCase))
-                    return "2,0,600,1,1e-06,0,0,0.001,0,0";
-
-                if (c.StartsWith(":WAVeform:DATA?", StringComparison.OrdinalIgnoreCase))
-                    return string.Join(",", Enumerable.Range(0, 600).Select(i =>
-                    {
-                        var x = (i - 300) / 300.0;
-                        // Negative-going: crystal detectors on this bench are negative polarity.
-                        return (-0.5 + 0.4 * x * x).ToString("0.####",
-                            System.Globalization.CultureInfo.InvariantCulture);
-                    }));
+                // format,type,points,count,xincrement,xorigin,xreference,yincrement,yorigin,
+                // yreference. Format 0 is BYTE. yreference 127 puts zero volts at mid-code, so
+                // the negative-going detector trace lands inside 0-255 the way a real one does -
+                // a simulator that could only express positive volts would hide a sign error.
+                return "0,0,600,1,1e-06,0,0,0.01,0,127";
             }
+
+            // The waveform itself is not a Query: the driver writes :WAVeform:DATA? and then reads
+            // raw bytes, so it arrives through NextBytes below.
 
             // OI is the 8340B's identification query — it predates *IDN?. Table 3-2 says 19
             // ASCII characters, so the simulator returns exactly that width.
@@ -137,6 +136,9 @@ public static class SimulatedBench
         // immediately rather than burning its timeout in tests.
         link.StatusByte = (byte)StatusByte1.RfSettled;
 
+        if (model.Contains("DS1104Z", StringComparison.OrdinalIgnoreCase))
+            link.NextBytes = SimulatedDetectorFrame();
+
         if (isDut)
         {
             // Both status bytes for OS (2b). Byte #2 bit 3 reports the external reference as
@@ -150,6 +152,41 @@ public static class SimulatedBench
         }
 
         return link;
+    }
+
+    /// <summary>
+    /// A synthetic swept detector envelope as the DS1104Z would actually send it: an IEEE 488.2
+    /// definite-length block of raw BYTE samples.
+    ///
+    /// <para>The trace falls away at both ends like a real swept envelope, so a broken
+    /// minimum-finder cannot pass against a flat line, and it is negative-going because every
+    /// crystal detector on this bench is negative polarity.</para>
+    /// </summary>
+    internal static byte[] SimulatedDetectorFrame(int points = 600)
+    {
+        // Must agree with the preamble above: volts = (raw - yorigin - yreference) * yincrement,
+        // with yincrement 0.01, yorigin 0 and yreference 127.
+        const double VoltsPerCode = 0.01;
+        const double CodeReference = 127;
+
+        var samples = new byte[points];
+
+        for (var i = 0; i < points; i++)
+        {
+            var x = (i - points / 2.0) / (points / 2.0);
+            var volts = -0.5 + 0.4 * x * x;
+
+            samples[i] = (byte)Math.Clamp(
+                Math.Round(volts / VoltsPerCode + CodeReference), 0, 255);
+        }
+
+        var header = Encoding.ASCII.GetBytes($"#9{points:D9}");
+        var block = new byte[header.Length + samples.Length];
+
+        header.CopyTo(block, 0);
+        samples.CopyTo(block, header.Length);
+
+        return block;
     }
 
     private static string IdentityFor(string model)

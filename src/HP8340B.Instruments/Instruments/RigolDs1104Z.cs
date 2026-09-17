@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using HP8340B.Instruments.Visa;
 
 namespace HP8340B.Instruments;
@@ -49,8 +50,15 @@ public sealed record ScopeWaveform(
 /// <para>This is the primary tuning view. Setup S4 puts the 8473C detector on CH1 and the DUT's
 /// rear-panel SWEEP OUTPUT on CH2 in XY mode, reproducing the manual's A-vs-B display — except
 /// that here the trace is read back as numbers rather than eyeballed. <b>Update rate matters more
-/// here than anywhere else in the project</b>: M2-02 targets a 0.5 s refresh while somebody is
-/// holding a tuning tool.</para>
+/// here than anywhere else in the project</b>, because somebody is holding a tuning tool and
+/// closing the loop by hand.</para>
+///
+/// <para>M2-02 originally asked for a 0.5 s refresh. That is 2 Hz, and it is too slow: past about
+/// half a second an operator can no longer connect what their hand did to what the trace did, so
+/// they overshoot and hunt. The DUT sweeps in 50 ms (5-16 steps 24 and 90), which puts the real
+/// ceiling at 20 Hz, so the capture path is built for that instead - see
+/// <see cref="ReadWaveformStreaming"/>. What this link actually achieves is unmeasured and is a
+/// job for the M0-30 benchmark, not for anybody's estimate.</para>
 /// </summary>
 public sealed class RigolDs1104Z : IInstrument
 {
@@ -80,18 +88,24 @@ public sealed class RigolDs1104Z : IInstrument
     /// Sets the horizontal timebase mode. <see cref="TimebaseMode.XY"/> is the A-vs-B display
     /// 5-14 is built around. Guide's own example: <c>:TIMebase:MODE XY</c>.
     /// </summary>
-    public void SetTimebaseMode(TimebaseMode mode) => _link.Write($":TIMebase:MODE {mode switch
+    public void SetTimebaseMode(TimebaseMode mode)
     {
-        TimebaseMode.Normal => "MAIN",
-        TimebaseMode.XY => "XY",
-        TimebaseMode.Roll => "ROLL",
-        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null),
-    }}");
+        _link.Write($":TIMebase:MODE {mode switch
+        {
+            TimebaseMode.Normal => "MAIN",
+            TimebaseMode.XY => "XY",
+            TimebaseMode.Roll => "ROLL",
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null),
+        }}");
+
+        InvalidateWaveformScaling();
+    }
 
     public void SetChannelEnabled(int channel, bool on)
     {
         ValidateChannel(channel);
         _link.Write($":CHANnel{channel}:DISPlay {(on ? "ON" : "OFF")}");
+        InvalidateWaveformScaling();
     }
 
     /// <summary>Vertical scale, volts per division.</summary>
@@ -99,6 +113,7 @@ public sealed class RigolDs1104Z : IInstrument
     {
         ValidateChannel(channel);
         _link.Write($":CHANnel{channel}:SCALe {Num(voltsPerDivision)}");
+        InvalidateWaveformScaling();
     }
 
     /// <summary>Vertical offset, volts.</summary>
@@ -106,6 +121,7 @@ public sealed class RigolDs1104Z : IInstrument
     {
         ValidateChannel(channel);
         _link.Write($":CHANnel{channel}:OFFSet {Num(volts)}");
+        InvalidateWaveformScaling();
     }
 
     public void SetChannelCoupling(int channel, ScopeCoupling coupling)
@@ -118,6 +134,8 @@ public sealed class RigolDs1104Z : IInstrument
             ScopeCoupling.Ground => "GND",
             _ => throw new ArgumentOutOfRangeException(nameof(coupling), coupling, null),
         }}");
+
+        InvalidateWaveformScaling();
     }
 
     /// <summary>
@@ -131,11 +149,15 @@ public sealed class RigolDs1104Z : IInstrument
             throw new ArgumentOutOfRangeException(nameof(ratio), ratio, "Probe ratio must be positive.");
 
         _link.Write($":CHANnel{channel}:PROBe {Num(ratio)}");
+        InvalidateWaveformScaling();
     }
 
     /// <summary>Horizontal scale, seconds per division.</summary>
-    public void SetTimebaseScale(double secondsPerDivision) =>
+    public void SetTimebaseScale(double secondsPerDivision)
+    {
         _link.Write($":TIMebase:MAIN:SCALe {Num(secondsPerDivision)}");
+        InvalidateWaveformScaling();
+    }
 
     /// <summary>External trigger on a rising edge — the DUT's sweep trigger in S4 and S5.</summary>
     public void SetExternalTrigger(double levelVolts, bool rising = true)
@@ -149,24 +171,85 @@ public sealed class RigolDs1104Z : IInstrument
     // --- Capture ------------------------------------------------------------------------------
 
     /// <summary>
-    /// Reads one channel as volts.
+    /// The preamble fields needed to turn raw BYTE samples into volts and seconds.
+    /// </summary>
+    /// <param name="Channel">The channel this preamble was read for.</param>
+    /// <param name="Points">Preamble <c>points</c> - how many samples a frame carries.</param>
+    /// <param name="SecondsPerSample">Preamble <c>xincrement</c>.</param>
+    /// <param name="StartSeconds">Preamble <c>xorigin</c>.</param>
+    /// <param name="VoltsPerCode">Preamble <c>yincrement</c>.</param>
+    /// <param name="CodeOrigin">Preamble <c>yorigin</c>.</param>
+    /// <param name="CodeReference">Preamble <c>yreference</c>.</param>
+    private sealed record WaveformScaling(
+        int Channel,
+        int Points,
+        double SecondsPerSample,
+        double StartSeconds,
+        double VoltsPerCode,
+        double CodeOrigin,
+        double CodeReference);
+
+    private WaveformScaling? _scaling;
+
+    /// <summary>
+    /// Discards the cached preamble, forcing the next capture to re-read it.
     ///
-    /// <para>Uses ASCII format, which returns the samples already scaled to volts. BYTE format is
-    /// faster on the wire but needs the preamble's yincrement, yorigin and yreference applied by
-    /// hand, and at the few-hundred-point screen depth this view uses, the difference does not
-    /// reach the 0.5 s budget. Revisit only if M2-02 turns out to miss its target.</para>
+    /// <para>Every setting that changes what a raw sample <i>means</i> calls this. That is the
+    /// whole risk of caching the preamble: a stale <c>yincrement</c> after a vertical-scale change
+    /// gives a trace wrong by a constant factor, which looks completely plausible and is exactly
+    /// the kind of error nobody catches at a bench. Re-reading ten bytes is cheaper than that.</para>
+    /// </summary>
+    public void InvalidateWaveformScaling() => _scaling = null;
+
+    /// <summary>
+    /// Reads one channel as volts, re-reading the preamble first.
+    ///
+    /// <para>This is the one-shot path. <see cref="ReadWaveformStreaming"/> is the live-view one.</para>
     /// </summary>
     public ScopeWaveform ReadWaveform(int channel)
     {
         ValidateChannel(channel);
 
+        _scaling = ReadScaling(channel);
+        return ReadFrame(_scaling);
+    }
+
+    /// <summary>
+    /// Reads one channel as volts reusing the cached preamble - one bus round trip per frame once
+    /// warm.
+    ///
+    /// <para><b>Why this exists.</b> The S4 view is watched while somebody turns a pot, and a human
+    /// closing that loop needs the trace to track their hand: under about 100 ms feels coupled, and
+    /// past about 500 ms they can no longer correlate the two and start hunting. The DUT sweeps in
+    /// 50 ms (5-16 steps 24 and 90), so 20 Hz is the ceiling worth aiming at, and the transport
+    /// should not be the thing that stops us reaching it.</para>
+    ///
+    /// <para>The one-shot path costs five round trips a frame. This costs one.</para>
+    /// </summary>
+    public ScopeWaveform ReadWaveformStreaming(int channel)
+    {
+        ValidateChannel(channel);
+
+        if (_scaling is null || _scaling.Channel != channel)
+            _scaling = ReadScaling(channel);
+
+        return ReadFrame(_scaling);
+    }
+
+    /// <summary>
+    /// Sets the transfer up and reads the preamble, which the guide documents as
+    /// <c>format,type,points,count,xincrement,xorigin,xreference,yincrement,yorigin,yreference</c>.
+    /// </summary>
+    private WaveformScaling ReadScaling(int channel)
+    {
         _link.Write($":WAVeform:SOURce CHANnel{channel}");
         _link.Write(":WAVeform:MODE NORMal");
-        _link.Write(":WAVeform:FORMat ASCii");
 
-        // Preamble, so the samples can be placed in time:
-        // <format>,<type>,<points>,<count>,<xincrement>,<xorigin>,<xreference>,
-        // <yincrement>,<yorigin>,<yreference>
+        // BYTE, not ASCII: one byte a sample instead of ~14 characters of text, so a 1200-point
+        // frame is 1.2 kB rather than ~17 kB, with no decimal parsing at the far end. The scaling
+        // that ASCII applied for us comes out of the preamble below instead.
+        _link.Write(":WAVeform:FORMat BYTE");
+
         var preamble = _link.Query(":WAVeform:PREamble?")
             .Split(',', StringSplitOptions.TrimEntries);
 
@@ -175,14 +258,49 @@ public sealed class RigolDs1104Z : IInstrument
                 $"DS1104Z preamble had {preamble.Length} fields, expected 10. Got: "
                 + string.Join(",", preamble));
 
-        var xIncrement = ParseField(preamble[4], "xincrement");
-        var xOrigin = ParseField(preamble[5], "xorigin");
+        var points = (int)ParseField(preamble[2], "points");
 
-        var data = _link.Query(":WAVeform:DATA?");
-        var volts = ParseAsciiBlock(data);
+        if (points <= 0)
+            throw new InvalidOperationException(
+                $"DS1104Z reported {points} points in its preamble, so there is no frame to read.");
 
-        return new ScopeWaveform(channel, volts, xIncrement, xOrigin);
+        return new WaveformScaling(
+            channel,
+            points,
+            SecondsPerSample: ParseField(preamble[4], "xincrement"),
+            StartSeconds: ParseField(preamble[5], "xorigin"),
+            VoltsPerCode: ParseField(preamble[7], "yincrement"),
+            CodeOrigin: ParseField(preamble[8], "yorigin"),
+            CodeReference: ParseField(preamble[9], "yreference"));
     }
+
+    /// <summary>
+    /// Reads one frame and scales it. A single round trip: the read is sized from the preamble's
+    /// point count plus room for the block header and terminator.
+    /// </summary>
+    private ScopeWaveform ReadFrame(WaveformScaling scaling)
+    {
+        _link.Write(":WAVeform:DATA?");
+
+        var raw = StripBlockHeader(_link.ReadBytes(scaling.Points + BlockOverheadBytes));
+
+        if (raw.Count == 0)
+            throw new InvalidOperationException("DS1104Z returned an empty waveform.");
+
+        var volts = new double[raw.Count];
+
+        for (var i = 0; i < raw.Count; i++)
+            volts[i] = (raw[i] - scaling.CodeOrigin - scaling.CodeReference) * scaling.VoltsPerCode;
+
+        return new ScopeWaveform(
+            scaling.Channel, volts, scaling.SecondsPerSample, scaling.StartSeconds);
+    }
+
+    /// <summary>
+    /// Room for the IEEE 488.2 definite-length header (<c>#9</c> plus nine digits) and a trailing
+    /// terminator, so one read asks for the whole block.
+    /// </summary>
+    private const int BlockOverheadBytes = 16;
 
     private static double ParseField(string text, string name) =>
         double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var v)
@@ -190,37 +308,41 @@ public sealed class RigolDs1104Z : IInstrument
             : throw new InvalidOperationException($"DS1104Z preamble {name} was '{text}'.");
 
     /// <summary>
-    /// Strips the IEEE 488.2 definite-length block header if present (<c>#9000001200</c> style)
-    /// and parses the comma-separated values.
+    /// Strips the IEEE 488.2 definite-length block header (<c>#9000001200</c> style) and returns
+    /// just the payload.
+    ///
+    /// <para>The byte count in the header is authoritative. The read buffer is deliberately
+    /// generous, so what comes back is normally longer than the data - a trailing terminator, and
+    /// whatever padding the transport adds - and trusting the buffer length instead would append
+    /// phantom samples to the end of every trace.</para>
     /// </summary>
-    internal static List<double> ParseAsciiBlock(string response)
+    internal static ArraySegment<byte> StripBlockHeader(byte[] response)
     {
-        var body = response.AsSpan().TrimStart();
+        ArgumentNullException.ThrowIfNull(response);
 
-        if (body.Length > 2 && body[0] == '#' && char.IsDigit(body[1]))
-        {
-            var headerDigits = body[1] - '0';
-            var skip = 2 + headerDigits;
-            if (body.Length > skip) body = body[skip..];
-        }
+        if (response.Length < 2 || response[0] != (byte)'#' || !char.IsAsciiDigit((char)response[1]))
+            return new ArraySegment<byte>(response);
 
-        var values = new List<double>();
+        var headerDigits = response[1] - '0';
 
-        foreach (var range in body.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var text = range.Trim();
-            if (text.Length == 0) continue;
+        // '#0' is the indefinite-length form: everything after the header is payload.
+        if (headerDigits == 0)
+            return new ArraySegment<byte>(response, 2, response.Length - 2);
 
-            if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var v))
-                throw new InvalidOperationException($"DS1104Z waveform contained '{text}'.");
+        var start = 2 + headerDigits;
 
-            values.Add(v);
-        }
+        if (start > response.Length)
+            return new ArraySegment<byte>(response);
 
-        if (values.Count == 0)
-            throw new InvalidOperationException("DS1104Z returned an empty waveform.");
+        var declared = Encoding.ASCII.GetString(response, 2, headerDigits);
 
-        return values;
+        // A header that will not parse, or that claims more than arrived, falls back to "the rest
+        // of the buffer" rather than throwing: a short read is worth reporting as a short trace.
+        if (!int.TryParse(declared, NumberStyles.Integer, CultureInfo.InvariantCulture, out var length)
+            || length < 0 || start + length > response.Length)
+            length = response.Length - start;
+
+        return new ArraySegment<byte>(response, start, length);
     }
 
     /// <summary>
